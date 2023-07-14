@@ -16,6 +16,7 @@
 #include "main/BuiltinCommands.h"
 #include "api/APIHelp.h"
 #include "main/NodeJsHelper.h"
+#include "main/PythonHelper.h"
 #include "api/BaseAPI.h"
 #include "api/BlockAPI.h"
 #include "api/GuiAPI.h"
@@ -76,6 +77,7 @@ enum class EVENT_TYPES : int {
     onOpenContainer,
     onCloseContainer,
     onInventoryChange,
+    onPlayerPullFishingHook,
     //onMove,
     onChangeSprinting,
     onSetArmor,
@@ -90,12 +92,10 @@ enum class EVENT_TYPES : int {
     onEntityExplode,
     onProjectileHitEntity,
     onWitherBossDestroy,
-    onEnderDragonDestroy,
     onRide,
     onStepOnPressurePlate,
     onSpawnProjectile,
     onProjectileCreated,
-    onNpcCmd,
     onChangeArmorStand,
     onEntityTransformation,
     /* Block Events */
@@ -400,7 +400,7 @@ void EnableEventListener(int eventId) {
             Event::PlayerAttackEvent::subscribe([](const PlayerAttackEvent& ev) {
                 IF_LISTENED(EVENT_TYPES::onAttackEntity) {
                     if (ev.mTarget) {
-                        CallEvent(EVENT_TYPES::onAttackEntity, PlayerClass::newPlayer(ev.mPlayer), EntityClass::newEntity(ev.mTarget));
+                        CallEvent(EVENT_TYPES::onAttackEntity, PlayerClass::newPlayer(ev.mPlayer), EntityClass::newEntity(ev.mTarget), Number::newNumber(ev.mAttackDamage));
                     }
                 }
                 IF_LISTENED_END(EVENT_TYPES::onAttackEntity);
@@ -750,7 +750,7 @@ void EnableEventListener(int eventId) {
         case EVENT_TYPES::onRespawnAnchorExplode:
             Event::BlockExplodeEvent::subscribe([](const BlockExplodeEvent& ev) {
                 BlockInstance bl(ev.mBlockInstance);
-                if (bl.getBlock()->getTypeName() == "minecraft:respawn_anchor") {
+                if (bl.getBlock()->getName() == "minecraft:respawn_anchor") {
                     IF_LISTENED(EVENT_TYPES::onRespawnAnchorExplode) {
                         CallEvent(EVENT_TYPES::onRespawnAnchorExplode, IntPos::newPos(bl.getPosition(), bl.getDimensionId()),
                                   Local<Value>());
@@ -809,15 +809,6 @@ void EnableEventListener(int eventId) {
             });
             break;
 
-        case EVENT_TYPES::onEnderDragonDestroy:
-            Event::EnderDragonDestroyEvent::subscribe([](const EnderDragonDestroyEvent& ev) {
-                IF_LISTENED(EVENT_TYPES::onEnderDragonDestroy) {
-                    CallEvent(EVENT_TYPES::onEnderDragonDestroy, EntityClass::newEntity((Actor*)ev.mEnderDragon), BlockClass::newBlock(*(BlockInstance*)(ev.mBlockLegacy)));
-                }
-                IF_LISTENED_END(EVENT_TYPES::onEnderDragonDestroy);
-            });
-            break;
-
         case EVENT_TYPES::onMobHurt:
             Event::MobHurtEvent::subscribe([](const MobHurtEvent& ev) {
                 IF_LISTENED(EVENT_TYPES::onMobHurt) {
@@ -860,16 +851,6 @@ void EnableEventListener(int eventId) {
                               (source ? EntityClass::newEntity(source) : Local<Value>()), Number::newNumber((int)ev.mDamageSource->getCause()));
                 }
                 IF_LISTENED_END(EVENT_TYPES::onMobDie);
-            });
-            break;
-
-        case EVENT_TYPES::onNpcCmd:
-            Event::NpcCmdEvent::subscribe([](const NpcCmdEvent& ev) {
-                IF_LISTENED(EVENT_TYPES::onNpcCmd) {
-                    CallEvent(EVENT_TYPES::onNpcCmd, EntityClass::newEntity(ev.mNpc), PlayerClass::newPlayer(ev.mPlayer),
-                              String::newString(ev.mCommand));
-                }
-                IF_LISTENED_END(EVENT_TYPES::onNpcCmd);
             });
             break;
 
@@ -984,12 +965,8 @@ void EnableEventListener(int eventId) {
         case EVENT_TYPES::onHopperSearchItem:
             Event::HopperSearchItemEvent::subscribe([](const HopperSearchItemEvent& ev) {
                 IF_LISTENED(EVENT_TYPES::onHopperSearchItem) {
-                    if (ev.isMinecart) {
-                        CallEvent(EVENT_TYPES::onHopperSearchItem, FloatPos::newPos(ev.mMinecartPos, ev.mDimensionId), Boolean::newBoolean(ev.isMinecart));
-                    } else {
-                        BlockInstance bl = ev.mHopperBlock;
-                        CallEvent(EVENT_TYPES::onHopperSearchItem, FloatPos::newPos(bl.getPosition().toVec3(), ev.mDimensionId), Boolean::newBoolean(ev.isMinecart));
-                    }
+                    CallEvent(EVENT_TYPES::onHopperSearchItem, FloatPos::newPos(ev.mPos, ev.mDimensionId),
+                              Boolean::newBoolean(ev.isMinecart), ItemClass::newItem(ev.mItemStack));
                 }
                 IF_LISTENED_END(EVENT_TYPES::onHopperSearchItem);
             });
@@ -998,7 +975,8 @@ void EnableEventListener(int eventId) {
         case EVENT_TYPES::onHopperPushOut:
             Event::HopperPushOutEvent::subscribe([](const HopperPushOutEvent& ev) {
                 IF_LISTENED(EVENT_TYPES::onHopperPushOut) {
-                    CallEvent(EVENT_TYPES::onHopperPushOut, FloatPos::newPos(ev.mPos, ev.mDimensionId));
+                    CallEvent(EVENT_TYPES::onHopperPushOut, FloatPos::newPos(ev.mPos, ev.mDimensionId),
+                              Boolean::newBoolean(ev.isMinecart), ItemClass::newItem(ev.mItemStack));
                 }
                 IF_LISTENED_END(EVENT_TYPES::onHopperPushOut);
             });
@@ -1137,12 +1115,23 @@ void EnableEventListener(int eventId) {
         case EVENT_TYPES::onBedExplode:
             Event::BlockExplodeEvent::subscribe([](const BlockExplodeEvent& ev) {
                 BlockInstance bl(ev.mBlockInstance);
-                if (bl.getBlock()->getTypeName() == "minecraft:bed") {
+                if (bl.getBlock()->getName() == "minecraft:bed") {
                     IF_LISTENED(EVENT_TYPES::onBedExplode) {
                         CallEvent(EVENT_TYPES::onBedExplode, IntPos::newPos(bl.getPosition(), bl.getDimensionId()));
                     }
                     IF_LISTENED_END(EVENT_TYPES::onBedExplode);
                 }
+                return true;
+            });
+            break;
+
+        case EVENT_TYPES::onPlayerPullFishingHook:
+            Event::PlayerPullFishingHookEvent::subscribe([](const PlayerPullFishingHookEvent& ev) {
+                IF_LISTENED(EVENT_TYPES::onPlayerPullFishingHook) {
+                    CallEvent(EVENT_TYPES::onPlayerPullFishingHook, PlayerClass::newPlayer(ev.mPlayer), 
+                              ev.mActor ? EntityClass::newEntity(ev.mActor) : Local<Value>(), ev.mItemStack ? ItemClass::newItem(ev.mItemStack) : Local<Value>());
+                }
+                IF_LISTENED_END(EVENT_TYPES::onPlayerPullFishingHook);
                 return true;
             });
             break;
@@ -1202,8 +1191,10 @@ void InitBasicEventListeners() {
 #ifdef LLSE_BACKEND_NODEJS
         if (!NodeJsHelper::processConsoleNpmCmd(ev.mCommand))
             return false;
+#elif defined(LLSE_BACKEND_PYTHON)
+        if (!PythonHelper::processConsolePipCmd(ev.mCommand))
+            return false;
 #endif
-
         // CallEvents
         vector<string> paras;
         bool isFromOtherEngine = false;
@@ -1241,8 +1232,10 @@ void InitBasicEventListeners() {
             case ScriptPluginManagerEvent::Operation::Load:
                 // ev.pluginType is not used
                 // since in loadPlugin there will be check
-                if (PluginManager::loadPlugin(ev.target, true, true))
-                    ev.success = true;
+                try {
+                    if (PluginManager::loadPlugin(ev.target, true, true))
+                        ev.success = true;
+                } catch(...) {}
                 break;
 
             case ScriptPluginManagerEvent::Operation::Unload:
@@ -1281,38 +1274,34 @@ void InitBasicEventListeners() {
         IF_LISTENED_END(EVENT_TYPES::onServerStarted);
         return true;
     });
-}
 
-inline bool CallTickEvent() {
-    IF_LISTENED(EVENT_TYPES::onTick) {
-        CallEvent(EVENT_TYPES::onTick);
-    }
-    IF_LISTENED_END(EVENT_TYPES::onTick);
-}
-
-// 植入tick
-TClasslessInstanceHook(void, "?tick@ServerLevel@@UEAAXXZ") {
+    // 植入tick
+    Schedule::repeat([](){
 #ifndef LLSE_BACKEND_NODEJS
-    try {
-        std::list<ScriptEngine*> tmpList;
-        {
-            SRWLockSharedHolder lock(globalShareData->engineListLock);
-            // low efficiency
-            tmpList = globalShareData->globalEngineList;
-        }
-        for (auto engine : tmpList) {
-            if (EngineManager::isValid(engine) && EngineManager::getEngineType(engine) == LLSE_BACKEND_TYPE) {
-                EngineScope enter(engine);
-                engine->messageQueue()->loopQueue(script::utils::MessageQueue::LoopType::kLoopOnce);
+        try {
+            std::list<ScriptEngine*> tmpList;
+            {
+                SRWLockSharedHolder lock(globalShareData->engineListLock);
+                // low efficiency
+                tmpList = globalShareData->globalEngineList;
             }
+            for (auto engine : tmpList) {
+                if (EngineManager::isValid(engine) && EngineManager::getEngineType(engine) == LLSE_BACKEND_TYPE) {
+                    EngineScope enter(engine);
+                    engine->messageQueue()->loopQueue(script::utils::MessageQueue::LoopType::kLoopOnce);
+                }
+            }
+        } catch (...) {
+            logger.error("Error occurred in Engine Message Loop!");
+            logger.error("Uncaught Exception Detected!");
         }
-    } catch (...) {
-        logger.error("Error occurred in Engine Message Loop!");
-        logger.error("Uncaught Exception Detected!");
-    }
 #endif
-    CallTickEvent();
-    return original(this);
+        // Call tick event
+        IF_LISTENED(EVENT_TYPES::onTick) {
+            CallEvent(EVENT_TYPES::onTick);
+        }
+        IF_LISTENED_END(EVENT_TYPES::onTick);
+    }, 1);
 }
 
 /* onTurnLectern // 由于还是不能拦截掉书，暂时注释

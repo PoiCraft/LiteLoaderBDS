@@ -15,6 +15,7 @@ ClassDefine<BlockEntityClass> BlockEntityClassBuilder =
         .constructor(nullptr)
         .instanceFunction("asPointer", &BlockEntityClass::asPointer)
 
+        .instanceProperty("name", &BlockEntityClass::getName)
         .instanceProperty("pos", &BlockEntityClass::getPos)
         .instanceProperty("type", &BlockEntityClass::getType)
 
@@ -58,6 +59,13 @@ Local<Value> BlockEntityClass::getPos() {
     CATCH("Fail in getBlockEntityPos!")
 }
 
+Local<Value> BlockEntityClass::getName() {
+    try {
+        return String::newString(blockEntity->getName());
+    }
+    CATCH("Fail in getName!")
+}
+
 Local<Value> BlockEntityClass::getType() {
     try {
         return Number::newNumber((int)blockEntity->getType());
@@ -89,7 +97,7 @@ Local<Value> BlockEntityClass::setNbt(const Arguments& args) {
 Local<Value> BlockEntityClass::getBlock(const Arguments& args) {
     try {
         BlockPos bp = blockEntity->getPosition();
-        return BlockClass::newBlock(Level::getBlock(bp, dim), &bp, dim);
+        return BlockClass::newBlock(Level::getBlock(bp, dim), bp, dim);
     }
     CATCH("Fail in getBlock!")
 }

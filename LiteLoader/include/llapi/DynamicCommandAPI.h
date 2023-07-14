@@ -45,7 +45,12 @@ class DynamicCommandInstance;
 class Player;
 
 
-#define AllResultType bool const*, int const*, float const*, std::string const*, CommandSelector<Actor> const*, CommandSelector<Player> const*, CommandPosition const*, CommandPositionFloat const*, CommandRawText const*, CommandMessage const*, Json::Value const*, CommandItem const*, Block const* const*, MobEffect const* const*, ActorDefinitionIdentifier const* const*, std::unique_ptr<Command> const*
+#define AllResultType                                                                                                  \
+    bool const*, int const*, float const*, std::string const*, CommandSelector<Actor> const*,                          \
+        CommandSelector<Player> const*, CommandPosition const*, CommandPositionFloat const*, CommandRawText const*,    \
+        CommandMessage const*, Json::Value const*, CommandItem const*, CommandBlockName const*,                        \
+        MobEffect const* const*, ActorDefinitionIdentifier const* const*, std::unique_ptr<Command> const*,             \
+        std::vector<class BlockStateCommandParam> const*
 
 /**
  * @brief The dynamic command
@@ -196,7 +201,7 @@ public:
         Item,
 
         /**
-         * @brief The block type ( `Const* Block` )
+         * @brief The block type ( `CommandBlockName` )
          *
          */
         Block,
@@ -217,6 +222,7 @@ public:
         ActorType,        // ActorDefinitionIdentifier const*
         Command,          // std::unique_ptr<Command>
         WildcardSelector, // WildcardCommandSelector<Actor>
+        BlockState,
 
 #ifdef ENABLE_PARAMETER_TYPE_POSTFIX
         Postfix, // int?
@@ -399,8 +405,9 @@ public:
         }
         template <ParameterType type, typename T>
         CommandParameterData makeParameterData() const {
-            CommandParameterData param{
-                type == ParameterType::Enum ? typeid_t<CommandRegistry>::count++ : type_id<CommandRegistry, T>(),
+            CommandParameterData param {
+                type == ParameterType::Enum ? Bedrock::typeid_t<CommandRegistry>::_getCounter().fetch_add(1)
+                                                                   : Bedrock::type_id<CommandRegistry, T>(),
                 type == ParameterType::Enum ? &CommandRegistry::fakeParse<T> : CommandRegistry::getParseFn<T>(),
                 name,
                 getCommandParameterDataType<type>(),
@@ -460,7 +467,9 @@ private:
             case ParameterType::Item:
                 return std::is_same_v<CommandItem, std::remove_cv_t<_Ty>>;
             case ParameterType::Block:
-                return std::is_same_v<Block const*, std::remove_cv_t<_Ty>>;
+                return std::is_same_v<CommandBlockName, std::remove_cv_t<_Ty>>;
+            case ParameterType::BlockState:
+                return std::is_same_v<std::vector<BlockStateCommandParam>, std::remove_cv_t<_Ty>>;
             case ParameterType::Effect:
                 return std::is_same_v<MobEffect const*, std::remove_cv_t<_Ty>>;
             // case ParameterType::Position:

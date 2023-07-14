@@ -35,6 +35,9 @@
 #include <llapi/mc/SynchedActorDataEntityWrapper.hpp>
 #include <llapi/PlayerInfoAPI.h>
 #include <llapi/mc/Biome.hpp>
+#include <llapi/mc/ActorMobilityUtils.hpp>
+#include <llapi/mc/IConstBlockSource.hpp>
+#include <llapi/mc/EntityContext.hpp>
 #include "main/SafeGuardRecord.h"
 #include <string>
 #include <vector>
@@ -52,6 +55,7 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
 
         .instanceProperty("name", &PlayerClass::getName)
         .instanceProperty("pos", &PlayerClass::getPos)
+        .instanceProperty("feetPos", &PlayerClass::getFeetPos)
         .instanceProperty("blockPos", &PlayerClass::getBlockPos)
         .instanceProperty("lastDeathPos", &PlayerClass::getLastDeathPos)
         .instanceProperty("realName", &PlayerClass::getRealName)
@@ -78,7 +82,6 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceProperty("inWaterOrRain", &PlayerClass::getInWaterOrRain)
         .instanceProperty("inWorld", &PlayerClass::getInWorld)
         .instanceProperty("inClouds", &PlayerClass::getInClouds)
-        .instanceProperty("sneaking", &PlayerClass::getSneaking)
         .instanceProperty("speed", &PlayerClass::getSpeed)
         .instanceProperty("direction", &PlayerClass::getDirection)
         .instanceProperty("uniqueId", &PlayerClass::getUniqueID)
@@ -104,6 +107,7 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceProperty("isFlying", &PlayerClass::isFlying)
         .instanceProperty("isSleeping", &PlayerClass::isSleeping)
         .instanceProperty("isMoving", &PlayerClass::isMoving)
+        .instanceProperty("isSneaking", &PlayerClass::isSneaking)
 
         .instanceFunction("isOP", &PlayerClass::isOP)
         .instanceFunction("setPermLevel", &PlayerClass::setPermLevel)
@@ -183,11 +187,15 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceFunction("getBiomeId", &PlayerClass::getBiomeId)
         .instanceFunction("getBiomeName", &PlayerClass::getBiomeName)
 
+        .instanceFunction("getAllEffects", &PlayerClass::getAllEffects)
+        .instanceFunction("addEffect", &PlayerClass::addEffect)
+        .instanceFunction("removeEffect", &PlayerClass::removeEffect)
+
         .instanceFunction("sendSimpleForm", &PlayerClass::sendSimpleForm)
         .instanceFunction("sendModalForm", &PlayerClass::sendModalForm)
         .instanceFunction("sendCustomForm", &PlayerClass::sendCustomForm)
         .instanceFunction("sendForm", &PlayerClass::sendForm)
-        .instanceFunction("sendPacket",&PlayerClass::sendPacket)
+        .instanceFunction("sendPacket", &PlayerClass::sendPacket)
 
         .instanceFunction("setExtraData", &PlayerClass::setExtraData)
         .instanceFunction("getExtraData", &PlayerClass::getExtraData)
@@ -220,6 +228,7 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceFunction("simulateDestroy", &PlayerClass::simulateDestroy)
         .instanceFunction("simulateDisconnect", &PlayerClass::simulateDisconnect)
         .instanceFunction("simulateInteract", &PlayerClass::simulateInteract)
+        .instanceFunction("simulateRespawn", &PlayerClass::simulateRespawn)
         .instanceFunction("simulateJump", &PlayerClass::simulateJump)
         .instanceFunction("simulateLocalMove", &PlayerClass::simulateLocalMove)
         .instanceFunction("simulateWorldMove", &PlayerClass::simulateWorldMove)
@@ -235,6 +244,7 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceFunction("simulateStopSneaking", &PlayerClass::simulateStopSneaking)
 
         // For Compatibility
+        .instanceProperty("sneaking", &PlayerClass::isSneaking)
         .instanceProperty("ip", &PlayerClass::getIP)
         .instanceFunction("setTag", &PlayerClass::setNbt)
         .instanceFunction("getTag", &PlayerClass::getNbt)
@@ -245,18 +255,18 @@ ClassDefine<PlayerClass> PlayerClassBuilder =
         .instanceFunction("distanceToPos", &PlayerClass::distanceTo)
         .build();
 
-
 //////////////////// Classes ////////////////////
 
-//生成函数
-PlayerClass::PlayerClass(Player* p)
-: ScriptClass(ScriptClass::ConstructFromCpp<PlayerClass>{}) {
+// 生成函数
+PlayerClass::PlayerClass(Player* p) : ScriptClass(ScriptClass::ConstructFromCpp<PlayerClass>{}) {
     set(p);
 }
+
 Local<Object> PlayerClass::newPlayer(Player* p) {
     auto newp = new PlayerClass(p);
     return newp->getScriptObject();
 }
+
 Player* PlayerClass::extract(Local<Value> v) {
     if (EngineScope::currentEngine()->isInstanceOf<PlayerClass>(v))
         return EngineScope::currentEngine()->getNativeInstance<PlayerClass>(v)->get();
@@ -264,7 +274,7 @@ Player* PlayerClass::extract(Local<Value> v) {
         return nullptr;
 }
 
-//公用API
+// 公用API
 Local<Value> McClass::getPlayerNbt(const Arguments& args) {
     CHECK_ARGS_COUNT(args, 1);
     CHECK_ARG_TYPE(args[0], ValueKind::kString);
@@ -273,8 +283,7 @@ Local<Value> McClass::getPlayerNbt(const Arguments& args) {
         auto nbt = Player::getPlayerNbt(uuid);
         if (nbt != nullptr) {
             return NbtCompoundClass::pack(Player::getPlayerNbt(uuid));
-        }
-        else {
+        } else {
             return Local<Value>();
         }
     }
@@ -332,8 +341,11 @@ Local<Value> McClass::getPlayerScore(const Arguments& args) {
     try {
         auto uuid = mce::UUID::fromString(args[0].asString().toString());
         auto obj = args[1].asString().toString();
-        auto score = Scoreboard::queryPlayerScore(uuid,obj).value();
-        return Number::newNumber(score);
+        auto scorev = Scoreboard::queryPlayerScore(uuid, obj);
+        if (scorev.has_value())
+            return Number::newNumber(scorev.value());
+        else
+            return Local<Value>();
     }
     CATCH("Fail in getPlayerScore!")
 }
@@ -383,6 +395,19 @@ Local<Value> McClass::reducePlayerScore(const Arguments& args) {
     CATCH("Fail in reducePlayerScore!")
 }
 
+Local<Value> McClass::deletePlayerScore(const Arguments& args) {
+    CHECK_ARGS_COUNT(args, 2);
+    CHECK_ARG_TYPE(args[0], ValueKind::kString);
+    CHECK_ARG_TYPE(args[1], ValueKind::kString);
+    try {
+        auto uuid = mce::UUID::fromString(args[0].asString().toString());
+        auto obj = args[1].asString().toString();
+        auto res = Scoreboard::forceRemovePlayerScoreFromObjective(uuid, obj);
+        return Boolean::newBoolean(res);
+    }
+    CATCH("Fail in deletePlayerScore!")
+}
+
 Local<Value> McClass::getPlayer(const Arguments& args) {
     CHECK_ARGS_COUNT(args, 1)
     CHECK_ARG_TYPE(args[0], ValueKind::kString)
@@ -394,11 +419,11 @@ Local<Value> McClass::getPlayer(const Arguments& args) {
 
         transform(target.begin(), target.end(), target.begin(), ::tolower); // lower case the string
         auto playerList = Level::getAllPlayers();
-        int delta = 2147483647; // c++ int max
+        int delta = 2147483647;                                             // c++ int max
         Player* found = nullptr;
 
         for (Player* p : playerList) {
-            if (p->getXuid() == target || std::to_string(p->getUniqueID().id) == target)
+            if (p->getXuid() == target || std::to_string(p->getOrCreateUniqueID().id) == target)
                 return PlayerClass::newPlayer(p);
 
             string pName = p->getName();
@@ -449,13 +474,11 @@ Local<Value> McClass::broadcast(const Arguments& args) {
     CATCH("Fail in Broadcast!")
 }
 
-//成员函数
+// 成员函数
 void PlayerClass::set(Player* player) {
     __try {
-        id = player->getUniqueID();
-    } __except (EXCEPTION_EXECUTE_HANDLER) {
-        isValid = false;
-    }
+        id = player->getOrCreateUniqueID();
+    } __except (EXCEPTION_EXECUTE_HANDLER) { isValid = false; }
 }
 
 Player* PlayerClass::get() {
@@ -485,6 +508,17 @@ Local<Value> PlayerClass::getPos() {
         return FloatPos::newPos(player->getPosition(), player->getDimensionId());
     }
     CATCH("Fail in getPlayerPos!")
+}
+
+Local<Value> PlayerClass::getFeetPos() {
+    try {
+        Player* player = get();
+        if (!player)
+            return Local<Value>();
+
+        return FloatPos::newPos(player->getFeetPosition(), player->getDimensionId());
+    }
+    CATCH("Fail in getPlayerFeetPos!")
 }
 
 Local<Value> PlayerClass::getBlockPos() {
@@ -687,7 +721,7 @@ Local<Value> PlayerClass::getCanPickupItems() {
     CATCH("Fail in getCanPickupItems!")
 }
 
-Local<Value> PlayerClass::getSneaking() {
+Local<Value> PlayerClass::isSneaking() {
     try {
         Player* player = get();
         if (!player)
@@ -695,7 +729,7 @@ Local<Value> PlayerClass::getSneaking() {
 
         return Boolean::newBoolean(player->isSneaking());
     }
-    CATCH("Fail in getSneaking!")
+    CATCH("Fail in isSneaking!")
 }
 
 Local<Value> PlayerClass::getSpeed() {
@@ -771,7 +805,8 @@ Local<Value> PlayerClass::getInLava() {
         if (!player)
             return Local<Value>();
 
-        return Boolean::newBoolean(player->isInLava());
+        return Boolean::newBoolean(ActorMobilityUtils::shouldApplyLava(
+            *(IConstBlockSource*)&player->getDimensionBlockSourceConst(), player->getEntityContext()));
     }
     CATCH("Fail in getInLava!")
 }
@@ -860,7 +895,7 @@ Local<Value> PlayerClass::getUniqueID() {
         if (!player)
             return Local<Value>();
         else
-            return String::newString(std::to_string(player->getUniqueID().id));
+            return String::newString(std::to_string(player->getOrCreateUniqueID().id));
     }
     CATCH("Fail in getUniqueID!")
 }
@@ -1221,6 +1256,8 @@ Local<Value> PlayerClass::isOP(const Arguments& args) {
     CATCH("Fail in IsOP!")
 }
 
+#include <llapi/mc/UpdateAbilitiesPacket.hpp>
+
 Local<Value> PlayerClass::setPermLevel(const Arguments& args) {
     CHECK_ARGS_COUNT(args, 1);
     CHECK_ARG_TYPE(args[0], ValueKind::kNumber);
@@ -1236,6 +1273,13 @@ Local<Value> PlayerClass::setPermLevel(const Arguments& args) {
             RecordOperation(ENGINE_OWN_DATA()->pluginName, "Set Permission Level",
                             fmt::format("Set Player {} Permission Level as {}.", player->getRealName(), newPerm));
             player->setPermissions((CommandPermissionLevel)newPerm);
+            if (newPerm >= 1) {
+                player->getAbilities().setPlayerPermissions(PlayerPermissionLevel::Operator);
+            } else {
+                player->getAbilities().setPlayerPermissions(PlayerPermissionLevel::Member);
+            }
+            UpdateAbilitiesPacket uPkt(player->getOrCreateUniqueID(), player->getAbilities());
+            player->sendNetworkPacket(uPkt);
             res = true;
         }
         return Boolean::newBoolean(res);
@@ -1332,18 +1376,15 @@ Local<Value> PlayerClass::setTitle(const Arguments& args) {
         int stayTime = 70;
         int fadeOutTime = 20;
 
-        if (args.size() >= 1)
-        {
+        if (args.size() >= 1) {
             CHECK_ARG_TYPE(args[0], ValueKind::kString);
             content = args[0].toStr();
         }
-        if (args.size() >= 2)
-        {
+        if (args.size() >= 2) {
             CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
             type = (TitleType)args[1].toInt();
         }
-        if (args.size() >= 5)
-        {
+        if (args.size() >= 5) {
             CHECK_ARG_TYPE(args[2], ValueKind::kNumber);
             CHECK_ARG_TYPE(args[3], ValueKind::kNumber);
             CHECK_ARG_TYPE(args[4], ValueKind::kNumber);
@@ -1352,7 +1393,7 @@ Local<Value> PlayerClass::setTitle(const Arguments& args) {
             fadeOutTime = args[4].toInt();
         }
 
-        return Boolean::newBoolean(player->sendTitlePacket(content,type,fadeInTime,stayTime,fadeOutTime));
+        return Boolean::newBoolean(player->sendTitlePacket(content, type, fadeInTime, stayTime, fadeOutTime));
     }
     CATCH("Fail in setTitle!");
 }
@@ -1451,11 +1492,6 @@ Local<Value> PlayerClass::getRespawnPosition(const Arguments& args) {
         if (!player)
             return Local<Value>();
         auto position = player->getRespawnPosition();
-        if (position.first.y == 32767) {
-            auto region = Level::getBlockSource(position.second);
-            if (region)
-                position.first = region->getHeightmapPos(position.first);
-        }
         return IntPos::newPos(position.first, position.second);
     }
     CATCH("Fail in getRespawnPosition!")
@@ -1980,7 +2016,7 @@ Local<Value> PlayerClass::sendSimpleForm(const Arguments& args) {
         }
 
         player->sendSimpleFormPacket(args[0].toStr(), args[1].toStr(), texts, images,
-                                     [id{player->getUniqueID()}, engine{EngineScope::currentEngine()},
+                                     [id{player->getOrCreateUniqueID()}, engine{EngineScope::currentEngine()},
                                       callback{script::Global(args[4].asFunction())}](int chosen) {
                                          if (ll::isServerStopping())
                                              return;
@@ -1994,7 +2030,8 @@ Local<Value> PlayerClass::sendSimpleForm(const Arguments& args) {
                                          EngineScope scope(engine);
                                          try {
                                              callback.get().call({}, PlayerClass::newPlayer(pl),
-                                                                 chosen >= 0 ? Number::newNumber(chosen) : Local<Value>());
+                                                                 chosen >= 0 ? Number::newNumber(chosen)
+                                                                             : Local<Value>());
                                          }
                                          CATCH_IN_CALLBACK("sendSimpleForm")
                                      });
@@ -2018,7 +2055,7 @@ Local<Value> PlayerClass::sendModalForm(const Arguments& args) {
             return Local<Value>();
 
         player->sendModalFormPacket(args[0].toStr(), args[1].toStr(), args[2].toStr(), args[3].toStr(),
-                                    [id{player->getUniqueID()}, engine{EngineScope::currentEngine()},
+                                    [id{player->getOrCreateUniqueID()}, engine{EngineScope::currentEngine()},
                                      callback{script::Global(args[4].asFunction())}](bool chosen) {
                                         if (ll::isServerStopping())
                                             return;
@@ -2032,7 +2069,8 @@ Local<Value> PlayerClass::sendModalForm(const Arguments& args) {
                                         EngineScope scope(engine);
                                         try {
                                             callback.get().call({}, PlayerClass::newPlayer(pl),
-                                                                chosen >= 0 ? Boolean::newBoolean(chosen) : Local<Value>());
+                                                                chosen >= 0 ? Boolean::newBoolean(chosen)
+                                                                            : Local<Value>());
                                         }
                                         CATCH_IN_CALLBACK("sendModalForm")
                                     });
@@ -2054,25 +2092,24 @@ Local<Value> PlayerClass::sendCustomForm(const Arguments& args) {
 
         string data = fifo_json::parse(args[0].toStr()).dump();
 
-        player->sendCustomFormPacket(data,
-                                     [id{player->getUniqueID()}, engine{EngineScope::currentEngine()},
-                                      callback{script::Global(args[1].asFunction())}](string result) {
-                                         if (ll::isServerStopping())
-                                             return;
-                                         if (!EngineManager::isValid(engine))
-                                             return;
+        player->sendCustomFormPacket(data, [id{player->getOrCreateUniqueID()}, engine{EngineScope::currentEngine()},
+                                            callback{script::Global(args[1].asFunction())}](string result) {
+            if (ll::isServerStopping())
+                return;
+            if (!EngineManager::isValid(engine))
+                return;
 
-                                         Player* pl = Global<Level>->getPlayer(id);
-                                         if (!pl)
-                                             return;
+            Player* pl = Global<Level>->getPlayer(id);
+            if (!pl)
+                return;
 
-                                         EngineScope scope(engine);
-                                         try {
-                                             callback.get().call({}, PlayerClass::newPlayer(pl),
-                                                                 result != "null" ? JsonToValue(result) : Local<Value>());
-                                         }
-                                         CATCH_IN_CALLBACK("sendCustomForm")
-                                     });
+            EngineScope scope(engine);
+            try {
+                callback.get().call({}, PlayerClass::newPlayer(pl),
+                                    result != "null" ? JsonToValue(result) : Local<Value>());
+            }
+            CATCH_IN_CALLBACK("sendCustomForm")
+        });
         return Number::newNumber(3);
     } catch (const fifo_json::exception& e) {
         logger.error("Fail to parse Json string in sendCustomForm!");
@@ -2110,19 +2147,17 @@ Local<Value> PlayerClass::sendForm(const Arguments& args) {
     CATCH("Fail in sendForm!");
 }
 
-Local<Value> PlayerClass::sendPacket(const Arguments& args)
-{
+Local<Value> PlayerClass::sendPacket(const Arguments& args) {
     CHECK_ARGS_COUNT(args, 1);
     CHECK_ARG_TYPE(args[0], ValueKind::kObject);
 
-    try
-    {
+    try {
         Player* player = get();
         if (!player)
             return Local<Value>();
         auto pkt = PacketClass::extract(args[0]);
-		if (!pkt)
-            return Boolean::newBoolean(false);  
+        if (!pkt)
+            return Boolean::newBoolean(false);
         player->sendNetworkPacket(*pkt);
         return Boolean::newBoolean(true);
     }
@@ -2197,11 +2232,23 @@ Local<Value> PlayerClass::hurt(const Arguments& args) {
 
     try {
         Player* player = get();
-        if (!player)
-            return Local<Value>();
-
-        int damage = args[0].toInt();
-        return Boolean::newBoolean(player->hurtEntity(damage));
+        if (!player) {
+            return Boolean::newBoolean(false);
+        }
+        float damage = args[0].asNumber().toFloat();
+        int type = 0;
+        if (args.size() == 2) {
+            CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
+            type = args[1].asNumber().toInt32();
+            return Boolean::newBoolean(player->hurtEntity(damage, (ActorDamageCause)type));
+        }
+        if (args.size() == 3) {
+            CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
+            auto source = EntityClass::extract(args[2]);
+            type = args[1].asNumber().toInt32();
+            return Boolean::newBoolean(player->hurtEntity(damage, (ActorDamageCause)type, source));
+        }
+        return Boolean::newBoolean(false);
     }
     CATCH("Fail in hurt!");
 }
@@ -2337,7 +2384,8 @@ Local<Value> PlayerClass::setKnockbackResistance(const Arguments& args) {
         if (!player)
             return Local<Value>();
 
-        AttributeInstance* knockbackResistanceAttribute = player->getMutableAttribute(Global<SharedAttributes>->KNOCKBACK_RESISTANCE);
+        AttributeInstance* knockbackResistanceAttribute =
+            player->getMutableAttribute(Global<SharedAttributes>->KNOCKBACK_RESISTANCE);
 
         knockbackResistanceAttribute->setCurrentValue(args[0].asNumber().toFloat());
 
@@ -2373,7 +2421,8 @@ Local<Value> PlayerClass::setMovementSpeed(const Arguments& args) {
         if (!player)
             return Local<Value>();
 
-        AttributeInstance* movementSpeedAttribute = player->getMutableAttribute(Global<SharedAttributes>->MOVEMENT_SPEED);
+        AttributeInstance* movementSpeedAttribute =
+            player->getMutableAttribute(Global<SharedAttributes>->MOVEMENT_SPEED);
 
         movementSpeedAttribute->setCurrentValue(args[0].asNumber().toFloat());
 
@@ -2391,7 +2440,8 @@ Local<Value> PlayerClass::setUnderwaterMovementSpeed(const Arguments& args) {
         if (!player)
             return Local<Value>();
 
-        AttributeInstance* underwaterMovementSpeedAttribute = player->getMutableAttribute(Global<SharedAttributes>->UNDERWATER_MOVEMENT_SPEED);
+        AttributeInstance* underwaterMovementSpeedAttribute =
+            player->getMutableAttribute(Global<SharedAttributes>->UNDERWATER_MOVEMENT_SPEED);
 
         underwaterMovementSpeedAttribute->setCurrentValue(args[0].asNumber().toFloat());
 
@@ -2409,7 +2459,8 @@ Local<Value> PlayerClass::setLavaMovementSpeed(const Arguments& args) {
         if (!player)
             return Local<Value>();
 
-        AttributeInstance* lavaMovementSpeedAttribute = player->getMutableAttribute(Global<SharedAttributes>->LAVA_MOVEMENT_SPEED);
+        AttributeInstance* lavaMovementSpeedAttribute =
+            player->getMutableAttribute(Global<SharedAttributes>->LAVA_MOVEMENT_SPEED);
 
         lavaMovementSpeedAttribute->setCurrentValue(args[0].asNumber().toFloat());
 
@@ -2507,8 +2558,7 @@ Local<Value> PlayerClass::giveItem(const Arguments& args) {
         auto item = ItemClass::extract(args[0]);
         if (!item)
             return Local<Value>(); // Null
-        if (args.size() >= 2)
-        {
+        if (args.size() >= 2) {
             CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
             return Boolean::newBoolean(player->giveItem(item, args[1].toInt()));
         }
@@ -2523,10 +2573,15 @@ Local<Value> PlayerClass::clearItem(const Arguments& args) {
 
     try {
         Player* player = get();
-        if (!player)
-            return Local<Value>();
-
-        return Number::newNumber(player->clearItem(args[0].toStr()));
+        if (!player) {
+            return {};
+        }
+        unsigned int clearCount = 1;
+        if (args.size() > 1) {
+            CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
+            clearCount = args[1].asNumber().toInt32();
+        }
+        return Number::newNumber((int32_t)player->clearItem(args[0].toStr(), clearCount));
     }
     CATCH("Fail in clearItem!");
 }
@@ -2653,9 +2708,7 @@ Local<Value> PlayerClass::getAbilities(const Arguments& args) {
         auto list = player->getNbt();
         try {
             return Tag2Value((Tag*)list->getCompoundTag("abilities"), true);
-        } catch (...) {
-            return Object::newObject();
-        }
+        } catch (...) { return Object::newObject(); }
     }
     CATCH("Fail in getAbilities!");
 }
@@ -2677,9 +2730,7 @@ Local<Value> PlayerClass::getAttributes(const Arguments& args) {
                 arr.add(Tag2Value(tag, true));
             }
             return arr;
-        } catch (...) {
-            return Array::newArray();
-        }
+        } catch (...) { return Array::newArray(); }
     }
     CATCH("Fail in getAttributes!");
 }
@@ -2729,7 +2780,8 @@ Local<Value> PlayerClass::getBlockFromViewVector(const Arguments& args) {
             CHECK_ARG_TYPE(args[3], ValueKind::kBoolean);
             fullOnly = args[3].asBoolean().value();
         }
-        auto blockInstance = player->getBlockFromViewVector(includeLiquid, solidOnly, maxDistance, ignoreBorderBlocks, fullOnly);
+        auto blockInstance =
+            player->getBlockFromViewVector(includeLiquid, solidOnly, maxDistance, ignoreBorderBlocks, fullOnly);
         if (blockInstance.isNull())
             return Local<Value>();
         return BlockClass::newBlock(std::move(blockInstance));
@@ -2739,7 +2791,10 @@ Local<Value> PlayerClass::getBlockFromViewVector(const Arguments& args) {
 
 Local<Value> PlayerClass::isSimulatedPlayer(const Arguments& args) {
     try {
-        return Boolean::newBoolean(get()->isSimulatedPlayer());
+        Player* actor = get();
+        if (!actor)
+            return Local<Value>();
+        return Boolean::newBoolean(actor->isSimulatedPlayer());
     }
     CATCH("Fail in isSimulatedPlayer!");
 }
@@ -2778,11 +2833,8 @@ Local<Value> PlayerClass::reduceMoney(const Arguments& args) {
         if (!player)
             return Local<Value>();
         auto xuid = player->getXuid();
-        return xuid.empty() ? Local<Value>() : Boolean::newBoolean(
-                                                   EconomySystem::reduceMoney(
-                                                       xuid,
-                                                       args[0].asNumber().toInt64())
-                                                   );
+        return xuid.empty() ? Local<Value>()
+                            : Boolean::newBoolean(EconomySystem::reduceMoney(xuid, args[0].asNumber().toInt64()));
     }
     CATCH("Fail in reduceMoney!");
 }
@@ -2796,10 +2848,8 @@ Local<Value> PlayerClass::setMoney(const Arguments& args) {
         if (!player)
             return Local<Value>();
         auto xuid = player->getXuid();
-        return xuid.empty() ? Local<Value>() : Boolean::newBoolean(
-                                                   EconomySystem::setMoney(
-                                                       xuid,args[0].asNumber().toInt64())
-                                                   );
+        return xuid.empty() ? Local<Value>()
+                            : Boolean::newBoolean(EconomySystem::setMoney(xuid, args[0].asNumber().toInt64()));
     }
     CATCH("Fail in setMoney!");
 }
@@ -2813,11 +2863,8 @@ Local<Value> PlayerClass::addMoney(const Arguments& args) {
         if (!player)
             return Local<Value>();
         auto xuid = player->getXuid();
-        return xuid.empty() ? Local<Value>() : Boolean::newBoolean(
-                                                   EconomySystem::addMoney(
-                                                       xuid,
-                                                       args[0].asNumber().toInt64())
-                                                   );
+        return xuid.empty() ? Local<Value>()
+                            : Boolean::newBoolean(EconomySystem::addMoney(xuid, args[0].asNumber().toInt64()));
     }
     CATCH("Fail in addMoney!");
 }
@@ -2838,17 +2885,13 @@ Local<Value> PlayerClass::transMoney(const Arguments& args) {
             targetXuid = args[0].toStr();
         else
             targetXuid = PlayerClass::extract(args[0])->getXuid();
-        if (args.size() >= 3)
-        {
+        if (args.size() >= 3) {
             CHECK_ARG_TYPE(args[2], ValueKind::kString);
             note = args[2].toStr();
         }
-        return xuid.empty() ? Local<Value>() : Boolean::newBoolean(
-                                                   EconomySystem::transMoney(
-                                                       xuid,
-                                                       targetXuid,args[0].asNumber().toInt64(),
-                                                       note)
-                                                   );
+        return xuid.empty() ? Local<Value>()
+                            : Boolean::newBoolean(
+                                  EconomySystem::transMoney(xuid, targetXuid, args[0].asNumber().toInt64(), note));
     }
     CATCH("Fail in transMoney!");
 }
@@ -2862,7 +2905,8 @@ Local<Value> PlayerClass::getMoneyHistory(const Arguments& args) {
         if (!player)
             return Local<Value>();
         auto xuid = player->getXuid();
-        return xuid.empty() ? Local<Value>() : objectificationMoneyHistory(EconomySystem::getMoneyHist(xuid,args[0].toInt()));
+        return xuid.empty() ? Local<Value>()
+                            : objectificationMoneyHistory(EconomySystem::getMoneyHist(xuid, args[0].toInt()));
     }
     CATCH("Fail in getMoneyHistory!");
 }
@@ -2933,7 +2977,6 @@ Local<Value> PlayerClass::removeItem(const Arguments& args) {
     }
     CATCH("Fail in removeItem!")
 }
-
 
 Local<Value> PlayerClass::sendToast(const Arguments& args) {
     CHECK_ARGS_COUNT(args, 2);
@@ -3128,4 +3171,61 @@ Local<Value> PlayerClass::getBiomeName() {
         return String::newString(bio->getName());
     }
     CATCH("Fail in getBiomeName!");
+}
+
+Local<Value> PlayerClass::getAllEffects() {
+    try {
+        Player* player = get();
+        if (!player) {
+            return Local<Value>();
+        }
+        if (!player->getActiveEffectCount()) {
+            return Local<Value>();
+        }
+        Local<Array> effectList = Array::newArray();
+        for (unsigned int i = 0; i <= 30; i++) {
+            if (player->getEffect(i)) {
+                effectList.add(Number::newNumber((int)i));
+            }
+        }
+        return effectList;
+    }
+    CATCH("Fail in getAllEffects!")
+}
+
+Local<Value> PlayerClass::addEffect(const Arguments& args) {
+    CHECK_ARGS_COUNT(args, 4);
+    CHECK_ARG_TYPE(args[0], ValueKind::kNumber);
+    CHECK_ARG_TYPE(args[1], ValueKind::kNumber);
+    CHECK_ARG_TYPE(args[2], ValueKind::kNumber);
+    CHECK_ARG_TYPE(args[3], ValueKind::kBoolean);
+    try {
+        Player* player = get();
+        if (!player) {
+            return Boolean::newBoolean(false);
+        }
+        unsigned int id = args[0].asNumber().toInt32();
+        int tick = args[1].asNumber().toInt32();
+        int level = args[2].asNumber().toInt32();
+        bool showParticles = args[3].asBoolean().value();
+        MobEffectInstance effect = MobEffectInstance(id, tick, level, false, showParticles, false);
+        player->addEffect(effect);
+        return Boolean::newBoolean(true);
+    }
+    CATCH("Fail in addEffect!");
+}
+
+Local<Value> PlayerClass::removeEffect(const Arguments& args) {
+    CHECK_ARGS_COUNT(args, 1);
+    CHECK_ARG_TYPE(args[0], ValueKind::kNumber);
+    try {
+        Player* player = get();
+        if (!player) {
+            return Boolean::newBoolean(false);
+        }
+        int id = args[0].asNumber().toInt32();
+        player->removeEffect(id);
+        return Boolean::newBoolean(true);
+    }
+    CATCH("Fail in removeEffect!");
 }

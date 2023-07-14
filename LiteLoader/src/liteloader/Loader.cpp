@@ -119,6 +119,21 @@ inline bool isExistNodeJsPlugin() {
     return exist;
 }
 
+inline bool isExistPythonPlugin() {
+    if (!filesystem::exists(LLSE_PYTHON_ROOT_DIR))
+        return false;
+
+    bool exist = false;
+    filesystem::directory_iterator ent(LLSE_PYTHON_ROOT_DIR);
+    for (auto& file : ent) {
+        if (file.is_directory() && filesystem::exists(file.path() / "pyproject.toml")) {
+            exist = true;
+            break;
+        }
+    }
+    return exist;
+}
+
 inline void initNodeJsDirectories() {
     // Check & Create nodejs directories
     if (!filesystem::exists(LLSE_NODEJS_ROOT_DIR)) {
@@ -136,10 +151,21 @@ inline void initNodeJsDirectories() {
     }
 }
 
+inline void initPythonDirectories() {
+    // Check & Create python directories
+    if (!filesystem::exists(LLSE_PYTHON_ROOT_DIR)) {
+        filesystem::create_directories(LLSE_PYTHON_ROOT_DIR);
+        ll::logger.warn(tr("ll.loader.initPythonDirectories.created"));
+    }
+}
+
 inline void loadScriptEngine() {
     std::string llVersion = GetFileVersionString(GetCurrentModule(), true);
     for (const string& backend : LLSE_VALID_BACKENDS) {
         std::string path = "plugins/LiteLoader/LiteLoader." + backend + ".dll";
+        if (!filesystem::exists(path)) {
+            continue;
+        }
         std::string version = GetFileVersionString(path, true);
         if (version != llVersion) {
             ll::logger.warn(tr("ll.loader.loadScriptEngine.error.versionNotMatch", version, backend, llVersion));
@@ -158,12 +184,7 @@ inline void loadScriptEngine() {
 }
 
 inline void loadDotNETEngine() {
-    std::string llVersion = GetFileVersionString(GetCurrentModule(), true);
     std::string path = "plugins/LiteLoader/LiteLoader.NET.dll";
-    std::string version = GetFileVersionString(path, true);
-    if (version != llVersion) {
-        ll::logger.warn(tr("ll.loader.loadDotNetEngine.error.versionNotMatch", version, llVersion));
-    }
     auto lib = LoadLibrary(str2wstr(path).c_str());
     if (lib) {
         ll::logger.info(tr("ll.loader.loadDotNetEngine.success"));
@@ -304,7 +325,10 @@ void ll::LoadMain() {
     // Load ScriptEngine
     if (ll::globalConfig.enableScriptEngine) {
         initNodeJsDirectories();
-        if (ll::globalConfig.alwaysLaunchScriptEngine || isExistNodeJsPlugin() || isExistScriptPlugin()) {
+        initPythonDirectories();
+        if (ll::globalConfig.alwaysLaunchScriptEngine || isExistNodeJsPlugin() || isExistPythonPlugin() 
+            || isExistScriptPlugin())
+        {
             loadScriptEngine();
         }
     }

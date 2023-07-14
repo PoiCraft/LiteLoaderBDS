@@ -18,21 +18,20 @@ private:
 
 public:
     explicit BlockClass(Block const* p);
-    BlockClass(Block const* p, BlockPos bp, int dim);
+    BlockClass(Block const* p, BlockPos const& bp, int dim);
 
-    void preloadData(BlockPos bp, int dim);
+    void preloadData(BlockPos const& bp, int dim);
     Block* get() {
         return block;
     }
     BlockInstance toBlockInstance() {
-        return BlockInstance::createBlockInstance(block, pos.getBlockPos(), pos.getDimensionId());
+        return BlockInstance(block, pos.getBlockPos(), pos.getDimensionId());
     }
 
 
-    static Local<Object> newBlock(Block const* p, BlockPos const* pos, int dim);
-    static Local<Object> newBlock(BlockPos const* pos, int dim);
-    static Local<Object> newBlock(const BlockPos& pos, int dim);
-    static Local<Object> newBlock(Block const* p, BlockPos const* pos, BlockSource const* bs);
+    static Local<Object> newBlock(Block const* p, BlockPos const& pos, int dim);
+    static Local<Object> newBlock(BlockPos const& pos, int dim);
+    static Local<Object> newBlock(Block const* p, BlockPos const& pos, BlockSource const* bs);
     static Local<Object> newBlock(IntVec4 pos);
     static Local<Object> newBlock(BlockInstance block);
     static Block* extract(Local<Value> v);

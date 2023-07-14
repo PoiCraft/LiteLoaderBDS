@@ -47,6 +47,7 @@ ClassDefine<BinaryStreamClass> BinaryStreamClassBuilder =
         .instanceFunction("writeVarInt", &BinaryStreamClass::writeVarInt)
         .instanceFunction("writeVarInt64", &BinaryStreamClass::writeVarInt64)
         .instanceFunction("writeVec3", &BinaryStreamClass::writeVec3)
+        .instanceFunction("writeCompoundTag", &BinaryStreamClass::writeCompoundTag)
         .instanceFunction("createPacket", &BinaryStreamClass::createPacket)
 
         .build();
@@ -455,3 +456,4 @@ Local<Value> BinaryStreamClass::writeCompoundTag(const Arguments& args){
     }
     CATCH("Fail in BinaryStream createPacket!");
 }
+

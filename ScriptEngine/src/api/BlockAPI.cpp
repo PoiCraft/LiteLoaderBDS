@@ -7,6 +7,7 @@
 #include "api/BlockEntityAPI.h"
 #include "api/NbtAPI.h"
 #include "api/NativeAPI.h"
+#include <llapi/mc/HashedString.hpp>
 #include <llapi/mc/Level.hpp>
 #include <llapi/mc/Block.hpp>
 #include <llapi/mc/CompoundTag.hpp>
@@ -60,42 +61,42 @@ ClassDefine<BlockClass> BlockClassBuilder =
         .instanceFunction("getTag", &BlockClass::getNbt)
         .build();
 
-
 //////////////////// Classes ////////////////////
 
-BlockClass::BlockClass(Block const* p)
-: ScriptClass(ScriptClass::ConstructFromCpp<BlockClass>{}), block(const_cast<Block*>(p)) {
+BlockClass::BlockClass(Block const* p) : ScriptClass(ScriptClass::ConstructFromCpp<BlockClass>{}), block((Block*)p) {
     preloadData({0, 0, 0}, -1);
 }
 
-BlockClass::BlockClass(Block const* p, BlockPos bp, int dim)
-: ScriptClass(ScriptClass::ConstructFromCpp<BlockClass>{}), block(const_cast<Block*>(p)) {
+BlockClass::BlockClass(Block const* p, BlockPos const& bp, int dim)
+: ScriptClass(ScriptClass::ConstructFromCpp<BlockClass>{}), block((Block*)p) {
     preloadData(bp, dim);
 }
 
 // generating function
-Local<Object> BlockClass::newBlock(Block const* p, BlockPos const* pos, int dim) {
-    auto newp = new BlockClass(p, *pos, dim);
+Local<Object> BlockClass::newBlock(Block const* p, BlockPos const& pos, int dim) {
+    auto newp = new BlockClass(p, pos, dim);
     return newp->getScriptObject();
 }
-Local<Object> BlockClass::newBlock(BlockPos const* pos, int dim) {
-    return BlockClass::newBlock(Level::getBlock(const_cast<BlockPos*>(pos), dim), pos, dim);
+
+Local<Object> BlockClass::newBlock(BlockPos const& pos, int dim) {
+    return BlockClass::newBlock(Level::getBlock(pos, dim), pos, dim);
 }
-Local<Object> BlockClass::newBlock(const BlockPos& pos, int dim) {
-    return newBlock((BlockPos*)&pos, dim);
-}
-Local<Object> BlockClass::newBlock(Block const* p, BlockPos const* pos, BlockSource const* bs) {
-    auto newp = new BlockClass(p, *pos, bs->getDimensionId());
+
+Local<Object> BlockClass::newBlock(Block const* p, BlockPos const& pos, BlockSource const* bs) {
+    auto newp = new BlockClass(p, pos, bs->getDimensionId());
     return newp->getScriptObject();
 }
+
 Local<Object> BlockClass::newBlock(IntVec4 pos) {
     BlockPos bp = {pos.x, pos.y, pos.z};
-    return BlockClass::newBlock(Level::getBlock(bp, pos.dim), &bp, pos.dim);
+    return BlockClass::newBlock(Level::getBlock(bp, pos.dim), bp, pos.dim);
 }
+
 Local<Object> BlockClass::newBlock(BlockInstance block) {
     BlockPos bp = block.getPosition();
-    return BlockClass::newBlock(block.getBlock(), &bp, block.getDimensionId());
+    return BlockClass::newBlock(block.getBlock(), bp, block.getDimensionId());
 }
+
 Block* BlockClass::extract(Local<Value> v) {
     if (EngineScope::currentEngine()->isInstanceOf<BlockClass>(v))
         return EngineScope::currentEngine()->getNativeInstance<BlockClass>(v)->get();
@@ -104,9 +105,9 @@ Block* BlockClass::extract(Local<Value> v) {
 }
 
 // member function
-void BlockClass::preloadData(BlockPos bp, int dim) {
-    name = block->getTypeName(); // TODO
-    type = block->getTypeName();
+void BlockClass::preloadData(BlockPos const& bp, int dim) {
+    name = block->getName().getString(); // TODO
+    type = block->getName().getString();
     id = block->getId();
     pos = {bp.x, bp.y, bp.z, dim};
 }
@@ -230,7 +231,7 @@ Local<Value> BlockClass::isThinFenceBlock() {
 
 Local<Value> BlockClass::isHeavyBlock() {
     try {
-        return Boolean::newBoolean(block->isHeavy());
+        return Boolean::newBoolean(block->isFallingBlock());
     }
     CATCH("Fail in isHeavyBlock!");
 }
@@ -276,7 +277,8 @@ Local<Value> BlockClass::destroyBlock(const Arguments& args) {
 
     try {
         // same as `Level::getBlockInstance(pos.getBlockPos(), pos.dim).breakNaturally()` when drop
-        return Boolean::newBoolean(Global<Level>->destroyBlock(*Level::getBlockSource(pos.dim), pos.getBlockPos(), args[0].asBoolean().value()));
+        return Boolean::newBoolean(Global<Level>->destroyBlock(*Level::getBlockSource(pos.dim), pos.getBlockPos(),
+                                                               args[0].asBoolean().value()));
     }
     CATCH("Fail in destroyBlock!");
 }
@@ -289,19 +291,7 @@ Local<Value> BlockClass::getNbt(const Arguments& args) {
 }
 
 Local<Value> BlockClass::setNbt(const Arguments& args) {
-    CHECK_ARGS_COUNT(args, 1);
-
-    try {
-        auto nbt = NbtCompoundClass::extract(args[0]);
-        if (!nbt)
-            return Local<Value>(); // Null
-
-        // update Pre Data
-        Level::setBlock(pos.getBlockPos(), pos.dim, (CompoundTag*)nbt);
-        preloadData(pos.getBlockPos(), pos.getDimensionId());
-        return Boolean::newBoolean(true);
-    }
-    CATCH("Fail in setNbt!")
+    return Boolean::newBoolean(false);
 }
 
 Local<Value> BlockClass::getBlockState(const Arguments& args) {
@@ -309,12 +299,8 @@ Local<Value> BlockClass::getBlockState(const Arguments& args) {
         auto list = block->getNbt();
         try {
             return Tag2Value((Tag*)list->get<Tag>("states"), true);
-        } catch (...) {
-            return Array::newArray();
-        }
-    } catch (const std::out_of_range& e) {
-        return Object::newObject();
-    }
+        } catch (...) { return Array::newArray(); }
+    } catch (const std::out_of_range& e) { return Object::newObject(); }
     CATCH("Fail in getBlockState!")
 }
 
@@ -405,7 +391,7 @@ Local<Value> McClass::getBlock(const Arguments& args) {
             return Local<Value>();
         }
         BlockPos bp{pos.x, pos.y, pos.z};
-        return BlockClass::newBlock(block, &bp, pos.dim);
+        return BlockClass::newBlock(block, bp, pos.dim);
     }
     CATCH("Fail in GetBlock!")
 }
@@ -466,11 +452,12 @@ Local<Value> McClass::setBlock(const Arguments& args) {
 
         if (block.isString()) {
             // block name
-            return Boolean::newBoolean(Level::setBlock(pos.getBlockPos(), pos.dim, block.toStr(), tileData));
+            return Boolean::newBoolean(
+                Level::setBlock(pos.getBlockPos(), pos.dim, Block::create(block.toStr(), tileData)));
         } else if (IsInstanceOf<NbtCompoundClass>(block)) {
             // Nbt
             Tag* nbt = NbtCompoundClass::extract(block);
-            return Boolean::newBoolean(Level::setBlock(pos.getBlockPos(), pos.dim, (CompoundTag*)nbt));
+            return Boolean::newBoolean(Level::setBlock(pos.getBlockPos(), pos.dim, Block::create((CompoundTag*)nbt)));
         } else {
             // other block object
             Block* bl = BlockClass::extract(block);
@@ -528,15 +515,15 @@ Local<Value> McClass::spawnParticle(const Arguments& args) {
             CHECK_ARG_TYPE(args[3], ValueKind::kNumber);
             CHECK_ARG_TYPE(args[4], ValueKind::kString);
 
-            pos = {args[0].asNumber().toFloat(), args[1].asNumber().toFloat(), args[2].asNumber().toFloat(), args[3].toInt()};
+            pos = {args[0].asNumber().toFloat(), args[1].asNumber().toFloat(), args[2].asNumber().toFloat(),
+                   args[3].toInt()};
             type = args[4];
         } else {
             LOG_WRONG_ARGS_COUNT();
             return Local<Value>();
         }
 
-        Global<Level>->spawnParticleEffect(type.toStr(), pos.getVec3(),
-                                           (Dimension*)Global<Level>->getDimension(pos.dim).mHandle.lock().get());
+        Global<Level>->spawnParticleEffect(type.toStr(), pos.getVec3(), Level::getDimensionPtr(pos.dim));
         return Boolean::newBoolean(true);
     }
     CATCH("Fail in SpawnParticle!")

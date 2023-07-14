@@ -69,6 +69,24 @@ ClassDefine<FileClass> FileClassBuilder =
         .function("open", &FileClass::open)
         .build();
 
+std::optional<std::string> getDirectoryPath(const std::string& path) {
+    std::string dirPath; // Directory path
+    if (path.find('/') != std::string::npos) { // e.g. plugins/LiteLoader/LiteLoader.json
+        std::size_t pos = path.find_last_of('/');
+        if (pos != std::string::npos) {
+            dirPath = path.substr(0, pos);
+        }
+    } else if(path.find('\\') != std::string::npos) { // e.g. plugins\\LiteLoader\\LiteLoader.json
+        std::size_t pos = path.find_last_of('\\');
+        if (pos != std::string::npos) {
+            dirPath = path.substr(0, pos);
+        }
+    } else {
+        return {};
+    }
+    return dirPath;
+}
+
 //////////////////// Classes ////////////////////
 
 //生成函数
@@ -95,8 +113,13 @@ FileClass* FileClass::constructor(const Arguments& args) {
 
     try {
         string path = args[0].toStr();
-        CreateDirs(path);
-
+        std::optional<std::string> dirPath = getDirectoryPath(path);
+        if (dirPath.has_value()) {
+            CreateDirs(dirPath.value());
+        } else {
+            LOG_ERROR_WITH_SCRIPT_INFO("Fail to create directory " + dirPath.value() + "!\n");
+            return nullptr;
+        }
         FileOpenMode fMode = (FileOpenMode)(args[1].toInt());
         // Auto Create
         if (fMode == FileOpenMode::ReadMode || fMode == FileOpenMode::WriteMode) {
@@ -204,7 +227,7 @@ Local<Value> FileClass::writeSync(const Arguments& args) {
             file.write((char*)args[0].asByteBuffer().getRawBytes(), args[0].asByteBuffer().byteLength());
         } else {
             LOG_WRONG_ARG_TYPE();
-            return Local<Value>();
+            return {};
         }
         return Boolean::newBoolean(!file.fail() && !file.bad());
     }
@@ -233,6 +256,7 @@ Local<Value> FileClass::read(const Arguments& args) {
 
         pool.enqueue([cnt, fp{&file}, isBinary{isBinary}, lock{&lock},
                       callback{std::move(callbackFunc)}, engine{EngineScope::currentEngine()}]() {
+            SetCurrentThreadDescription(L"LLSE_FileRead_" _CRT_WIDE(LLSE_MODULE_TYPE));
             if (ll::isServerStopping())
                 return;
             if (!EngineManager::isValid(engine))
@@ -252,6 +276,7 @@ Local<Value> FileClass::read(const Arguments& args) {
                 NewTimeout(callback.get(), {res}, 1);
             }
             CATCH_IN_CALLBACK("ReadFile")
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -267,6 +292,7 @@ Local<Value> FileClass::readLine(const Arguments& args) {
 
         pool.enqueue([fp{&file}, lock{&lock},
                       callback{std::move(callbackFunc)}, engine{EngineScope::currentEngine()}]() {
+            SetCurrentThreadDescription(L"LLSE_FileReadLine_" _CRT_WIDE(LLSE_MODULE_TYPE));
             if (ll::isServerStopping())
                 return;
             if (!EngineManager::isValid(engine))
@@ -282,6 +308,7 @@ Local<Value> FileClass::readLine(const Arguments& args) {
                 NewTimeout(callback.get(), {String::newString(buf)}, 1);
             }
             CATCH_IN_CALLBACK("FileReadLine")
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -297,6 +324,7 @@ Local<Value> FileClass::readAll(const Arguments& args) {
 
         pool.enqueue([fp{&file}, isBinary{isBinary}, lock{&lock},
                       callback{std::move(callbackFunc)}, engine{EngineScope::currentEngine()}]() {
+            SetCurrentThreadDescription(L"LLSE_FileReadAll_" _CRT_WIDE(LLSE_MODULE_TYPE));
             if (ll::isServerStopping())
                 return;
             if (!EngineManager::isValid(engine))
@@ -312,6 +340,7 @@ Local<Value> FileClass::readAll(const Arguments& args) {
                 NewTimeout(callback.get(), {readed}, 1);
             }
             CATCH_IN_CALLBACK("FileReadAll")
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -333,7 +362,7 @@ Local<Value> FileClass::write(const Arguments& args) {
             data = std::move(string((char*)args[0].asByteBuffer().getRawBytes(), args[0].asByteBuffer().byteLength()));
         } else {
             LOG_WRONG_ARG_TYPE();
-            return Local<Value>();
+            return {};
         }
 
         script::Global<Function> callbackFunc;
@@ -342,6 +371,7 @@ Local<Value> FileClass::write(const Arguments& args) {
 
         pool.enqueue([fp{&file}, lock{&lock}, data{std::move(data)}, isString,
                       callback{std::move(callbackFunc)}, engine{EngineScope::currentEngine()}]() {
+            SetCurrentThreadDescription(L"LLSE_FileWrite_" _CRT_WIDE(LLSE_MODULE_TYPE));
             if (ll::isServerStopping())
                 return;
             if (!EngineManager::isValid(engine))
@@ -362,6 +392,7 @@ Local<Value> FileClass::write(const Arguments& args) {
                 }
                 CATCH_IN_CALLBACK("WriteFile")
             }
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -383,6 +414,7 @@ Local<Value> FileClass::writeLine(const Arguments& args) {
 
         pool.enqueue([fp{&file}, lock{&lock}, data{std::move(data)},
                       callback{std::move(callbackFunc)}, engine{EngineScope::currentEngine()}]() {
+            SetCurrentThreadDescription(L"LLSE_FileWriteLine_" _CRT_WIDE(LLSE_MODULE_TYPE));
             if (ll::isServerStopping())
                 return;
             if (!EngineManager::isValid(engine))
@@ -400,6 +432,7 @@ Local<Value> FileClass::writeLine(const Arguments& args) {
                 }
                 CATCH_IN_CALLBACK("FileWriteLine")
             }
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -463,9 +496,11 @@ Local<Value> FileClass::isEOF(const Arguments& args) {
 Local<Value> FileClass::flush(const Arguments& args) {
     try {
         pool.enqueue([fp{&file}, lock{&lock}]() {
+            SetCurrentThreadDescription(L"LLSE_FileFlush_" _CRT_WIDE(LLSE_MODULE_TYPE));
             lock->lock();
             fp->flush();
             lock->unlock();
+            SetCurrentThreadDescription(L"LLSE_ThreadPool_Idle_" _CRT_WIDE(LLSE_MODULE_TYPE));
         });
         return Boolean::newBoolean(true);
     }
@@ -588,7 +623,7 @@ Local<Value> CheckIsDir(const Arguments& args) {
         return Boolean::newBoolean(directory_entry(p).is_directory());
     } catch (const filesystem_error& e) {
         LOG_ERROR_WITH_SCRIPT_INFO("Fail to Get Type of " + args[0].asString().toString() + "!\n");
-        return Local<Value>();
+        return {};
     }
     CATCH("Fail in GetFilesList!");
 }
@@ -608,7 +643,7 @@ Local<Value> GetFileSize(const Arguments& args) {
         return Number::newNumber((int64_t)sz);
     } catch (const filesystem_error& e) {
         LOG_ERROR_WITH_SCRIPT_INFO("Fail to Get Size of " + args[0].asString().toString() + "!\n");
-        return Local<Value>();
+        return {};
     }
     CATCH("Fail in GetFilesList!");
 }
@@ -635,7 +670,7 @@ Local<Value> FileReadFrom(const Arguments& args) {
     try {
         auto content = ReadAllFile(args[0].toStr());
         if (!content)
-            return Local<Value>(); // Null
+            return {}; // Null
         return String::newString(*content);
     }
     CATCH("Fail in FileReadAll!");
@@ -648,7 +683,13 @@ Local<Value> FileWriteTo(const Arguments& args) {
 
     try {
         string path = args[0].toStr();
-        CreateDirs(path);
+        std::optional<std::string> dirPath = getDirectoryPath(path);
+        if (dirPath.has_value()) {
+            CreateDirs(dirPath.value());
+        } else {
+            LOG_ERROR_WITH_SCRIPT_INFO("Fail to create directory " + dirPath.value() + "!\n");
+            return Boolean::newBoolean(false);
+        }
         return Boolean::newBoolean(WriteAllFile(path, args[1].toStr(), false));
     }
     CATCH("Fail in FileWriteAll!");
@@ -661,7 +702,13 @@ Local<Value> FileWriteLine(const Arguments& args) {
 
     try {
         string path = args[0].toStr();
-        CreateDirs(path);
+        std::optional<std::string> dirPath = getDirectoryPath(path);
+        if (dirPath.has_value()) {
+            CreateDirs(dirPath.value());
+        } else {
+            LOG_ERROR_WITH_SCRIPT_INFO("Fail to create directory " + dirPath.value() + "!\n");
+            return Boolean::newBoolean(false);
+        }
 
         std::ofstream fileWrite(path, std::ios::app);
         if (!fileWrite)
@@ -684,7 +731,13 @@ Local<Value> OpenFile(const Arguments& args) {
 
     try {
         string path = args[0].toStr();
-        CreateDirs(path);
+        std::optional<std::string> dirPath = getDirectoryPath(path);
+        if (dirPath.has_value()) {
+            CreateDirs(dirPath.value());
+        } else {
+            LOG_ERROR_WITH_SCRIPT_INFO("Fail to create directory " + dirPath.value() + "!\n");
+            return {};
+        }
 
         FileOpenMode fMode = (FileOpenMode)(args[1].toInt());
         ios_base::openmode mode = ios_base::in;
@@ -705,12 +758,12 @@ Local<Value> OpenFile(const Arguments& args) {
         fstream fs(str2wstr(path), mode);
         if (!fs.is_open()) {
             LOG_ERROR_WITH_SCRIPT_INFO("Fail to Open File " + path + "!\n");
-            return Local<Value>();
+            return {};
         }
         return FileClass::newFile(std::move(fs), path, isBinary);
     } catch (const filesystem_error& e) {
         LOG_ERROR_WITH_SCRIPT_INFO("Fail to Open File " + args[0].asString().toString() + "!\n");
-        return Local<Value>();
+        return {};
     }
     CATCH("Fail in OpenFile!");
 }

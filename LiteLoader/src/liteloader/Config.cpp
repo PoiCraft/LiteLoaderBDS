@@ -38,9 +38,6 @@ void inline to_json(nlohmann::json& j, const LLConfig& conf) {
             {"SimpleServerLogger", {
                 {"enabled", conf.enableSimpleServerLogger}
             }},
-            {"FixDisconnectBug", {
-                {"enabled", conf.enableFixDisconnectBug}
-            }},
             {"UnlockCmd", {
                 {"enabled", conf.enableUnlockCmd}
             }},
@@ -50,10 +47,6 @@ void inline to_json(nlohmann::json& j, const LLConfig& conf) {
             }},
             {"FixListenPort", {
                 {"enabled", conf.enableFixListenPort}
-            }},
-            {"AntiGive", {
-                {"enabled", conf.enableAntiGive},
-                {"command", conf.antiGiveCommand}
             }},
             {"ErrorStackTraceback", {
                 {"enabled", conf.enableErrorStackTraceback},
@@ -91,13 +84,20 @@ void inline to_json(nlohmann::json& j, const LLConfig& conf) {
             {"ParticleAPI", {
                 {"enabled", conf.enableParticleAPI}
             }},
-             {"PermissionAPI", {
+            {"PermissionAPI", {
                 {"enabled", conf.enablePermissionAPI}
             }},
             {"FixAbility", {
                 {"enabled", conf.enableFixAbility}
             }},
-        }}
+            {"FixBroadcastBug", {
+                {"enabled", conf.enableFixBroadcastBug}
+            }},
+            {"DisableAutoCompactionLog", {
+                {"enabled", conf.disableAutoCompactionLog}
+            }},
+        }},
+        {"ResourcePackEncryption", conf.resourcePackEncryptionMap},
     };
     // clang-format on
 }
@@ -111,6 +111,15 @@ void inline from_json(const nlohmann::json& j, LLConfig& conf) {
     conf.version = j.value("Version", 1);
     conf.logLevel = j.value("LogLevel", 4);
     conf.language = j.value("Language", "system");
+    conf.resourcePackEncryptionMap = j.value("ResourcePackEncryption", map<string, string>{{"UUID", "KEY"}});
+
+    auto& tempMap = conf.resourcePackEncryptionMap;
+    for (auto x : tempMap) {
+        string tempUuid = x.first;
+        transform(tempUuid.begin(), tempUuid.end(), tempUuid.begin(), ::toupper);
+        tempMap.erase(x.first);
+        tempMap.insert({tempUuid, x.second});
+    }
 
     if (j.find("ScriptEngine") != j.end()) {
         const nlohmann::json& scriptEngine = j.at("ScriptEngine");
@@ -126,15 +135,11 @@ void inline from_json(const nlohmann::json& j, LLConfig& conf) {
         if (modules.find("CrashLogger") != modules.end()) {
             const nlohmann::json& setting = modules.at("CrashLogger");
             conf.enableCrashLogger = setting.value("enabled", true);
-            conf.crashLoggerPath = setting.value("path", "plugins\\LiteLoader\\CrashLogger_Daemon.exe");
+            conf.crashLoggerPath = setting.value("path", "plugins\\LiteLoader\\CrashLogger.exe");
         }
         if (modules.find("SimpleServerLogger") != modules.end()) {
             const nlohmann::json& setting = modules.at("SimpleServerLogger");
             conf.enableSimpleServerLogger = setting.value("enabled", true);
-        }
-        if (modules.find("FixDisconnectBug") != modules.end()) {
-            const nlohmann::json& setting = modules.at("FixDisconnectBug");
-            conf.enableFixDisconnectBug = setting.value("enabled", true);
         }
         if (modules.find("FixListenPort") != modules.end()) {
             const nlohmann::json& setting = modules.at("FixListenPort");
@@ -148,11 +153,6 @@ void inline from_json(const nlohmann::json& j, LLConfig& conf) {
             const nlohmann::json& setting = modules.at("AddonsHelper");
             conf.enableAddonsHelper = setting.value("enabled", true);
             conf.addonsInstallPath = setting.value("autoInstallPath", "plugins/AddonsHelper");
-        }
-        if (modules.find("AntiGive") != modules.end()) {
-            const nlohmann::json& setting = modules.at("AntiGive");
-            conf.enableAntiGive = setting.value("enabled", true);
-            conf.antiGiveCommand = setting.value("command", "kick {player}");
         }
         if (modules.find("UnoccupyPort19132") != modules.end()) {
             const nlohmann::json& setting = modules.at("UnoccupyPort19132");
@@ -234,7 +234,7 @@ inline bool SaveConfig(nlohmann::json& config) {
 
 /* deprecated
 
-void ChooseLanguage() { 
+void ChooseLanguage() {
     std::unordered_map<std::string, std::string> languageList = {{"en", "English"}, {"zh_CN", "简体中文"}, {"zh_TW", "繁体中文"}, {"ja", "日本語"}, {"ru", "Русский"}, {"id", "Indonesian"}, {"th", "ไทย"}, {"it", "Italiano"}, {"vi", "tiếng việt"}};
     ll::logger.info("Please select your language first");
     std::unordered_map<unsigned short, std::string> languages;

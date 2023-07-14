@@ -10,13 +10,14 @@
 #include "liteloader/LiteLoader.h"
 
 using ll::logger;
-static_assert(offsetof(CommandParameterData, options) == 73);
+static_assert(offsetof(CommandParameterData, options) == 89);
 static_assert(offsetof(CommandParameterData, name) == 16);
-static_assert(offsetof(CommandParameterData, unk56) == 56);
-static_assert(offsetof(CommandRegistry::Overload, unk) == 40);
+static_assert(offsetof(CommandParameterData, unk72) == 72);
+static_assert(sizeof(CommandParameterData) == 96);
+static_assert(offsetof(CommandRegistry::Overload, versionOffset) == 40);
 static_assert(sizeof(CommandRegistry::Overload) == 72);
-static_assert(offsetof(CommandRegistry::Signature, alt_symbol) == 96);
-static_assert(sizeof(CommandRegistry::Signature) == 120);
+static_assert(offsetof(CommandRegistry::Signature, alt_symbol) == 120);
+static_assert(sizeof(CommandRegistry::Signature) == 152);
 /*
 void CommandRegistry::registerOverload(std::string const& name, Overload::FactoryFn factory, std::vector<CommandParameterData>&& args)
 {
@@ -31,7 +32,7 @@ CommandRegistry::Overload::Overload(CommandVersion version,
 : version(version)
 , factory(factory)
 , params(std::forward<std::vector<CommandParameterData>>(args))
-, unk(255){};
+, versionOffset(255){};
 
 CommandRegistry::Overload::~Overload(){};
 

@@ -13,6 +13,7 @@ ClassDefine<void> McClassBuilder =
         .function("getPlayer", &McClass::getPlayer)
         .function("getOnlinePlayers", &McClass::getOnlinePlayers)
         .function("getAllEntities", McClass::getAllEntities)
+        .function("getEntities", McClass::getEntities)
         .function("newItem", &McClass::newItem)
         .function("spawnMob", &McClass::spawnMob)
         .function("cloneMob", &McClass::cloneMob)
@@ -46,7 +47,11 @@ ClassDefine<void> McClassBuilder =
         .function("setPlayerScore", &McClass::setPlayerScore)
         .function("addPlayerScore", &McClass::addPlayerScore)
         .function("reducePlayerScore", &McClass::reducePlayerScore)
-
+        .function("deletePlayerScore", &McClass::deletePlayerScore)
+        .function("getTime", &McClass::getTime)
+        .function("setTime", &McClass::setTime)
+        .function("getWeather", &McClass::getWeather)
+        .function("setWeather", &McClass::setWeather)
         // For Compatity
         .function("getAllScoreObjective", &McClass::getAllScoreObjectives)
         .function("getDisplayObjectives", &McClass::getDisplayObjective)

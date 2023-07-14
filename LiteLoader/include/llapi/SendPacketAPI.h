@@ -25,14 +25,19 @@ public:
     virtual void write(BinaryStream& bs) const {
         bs.getRaw().append(view);
     }
-    virtual enum StreamReadResult _read(class ReadOnlyBinaryStream&) override {
-        throw("TODO in MyPkt::_read()");
-        return (enum StreamReadResult)0;
-    }
-    virtual void dummyread() {
-        throw("TODO in MyPkt::dummyread()");
+
+    virtual class Bedrock::Result<void, class std::error_code> read(class ReadOnlyBinaryStream&) {
+        throw("TODO");
     }
     virtual bool disallowBatching() const {
         return !batching;
+    }
+    virtual bool isValid() const {
+        throw("TODO");
+    }
+
+    virtual class Bedrock::Result<void, class std::error_code> _read(class ReadOnlyBinaryStream&) override {
+        throw("TODO in MyPkt::_read()");
+        //return ExtendedStreamReadResult{(enum StreamReadResult)0, ""};
     }
 };

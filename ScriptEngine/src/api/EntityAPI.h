@@ -27,6 +27,8 @@ public:
     Local<Value> getType();
     Local<Value> getId();
     Local<Value> getPos();
+    Local<Value> getPosDelta();
+    Local<Value> getFeetPos();
     Local<Value> getBlockPos();
     Local<Value> getMaxHealth();
     Local<Value> getHealth();
@@ -63,6 +65,7 @@ public:
     Local<Value> isBaby();
     Local<Value> isMoving();
 
+    Local<Value> setPosDelta(const Arguments& args);
     Local<Value> teleport(const Arguments& args);
     Local<Value> kill(const Arguments& args);
     Local<Value> despawn(const Arguments& args);
@@ -108,6 +111,11 @@ public:
     Local<Value> getBlockFromViewVector(const Arguments& args);
 
     Local<Value> quickEvalMolangScript(const Arguments& args);
+
+    Local<Value> getAllEffects();
+    Local<Value> addEffect(const Arguments& args);
+    Local<Value> removeEffect(const Arguments& args);
+
 };
 extern ClassDefine<EntityClass> EntityClassBuilder;
 extern ClassDefine<void> ActorDamageCauseBuilder;

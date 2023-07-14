@@ -1,21 +1,25 @@
-name: "Publish Release"
+name: Release
 
 on:
   workflow_dispatch:
     inputs:
       tag:
         required: true
-        description: 'release tag'
+        description: 'Release Tag'
+      status:
+        required: true
+        description: 'Release Status (beta, stable)'
 
 env:
   BUILD_TYPE: Release
 
 jobs:
   build:
+    name: Build
     runs-on: windows-2022
-
     steps:
-      - uses: actions/checkout@v3.2.0
+      - name: Checkout repository
+        uses: actions/checkout@v3.2.0
         with:
           fetch-depth: 1
           submodules: 'true'
@@ -30,7 +34,7 @@ jobs:
           git push origin ${{ github.event.inputs.tag }}
         shell: bash
 
-      - name: Cache Bedrock Dedicated Server Library
+      - name: Cache BDS libraries
         id: cache-bds-lib
         uses: actions/cache@v3
         env:
@@ -41,7 +45,7 @@ jobs:
             ${{ env.GITHUB_WORKSPACE }}LiteLoader/Lib/bedrock_server_var.lib
           key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('scripts/LINK.txt') }}
 
-      - name: Download Server
+      - name: Download BDS if not cached
         if: steps.cache-bds-lib.outputs.cache-hit != 'true'
         working-directory: ${{ env.GITHUB_WORKSPACE }}
         run: |
@@ -51,104 +55,155 @@ jobs:
           unzip Tools/Server/server.zip -d Tools/Server/ > /dev/null
         shell: bash
 
-      - name: Build Library
+      - name: Build libraries if not cached
         if: steps.cache-bds-lib.outputs.cache-hit != 'true'
         working-directory: ${{ env.GITHUB_WORKSPACE }}
         run: |
-          cd Tools
-          LibraryBuilder.exe Server
-          mkdir ..\LiteLoader\lib
-          move bedrock_server_api.lib ..\LiteLoader\lib
-          move bedrock_server_var.lib ..\LiteLoader\lib
-        shell: cmd
-
-      - name: Get Short Sha
-        id: sha_short
-        run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-
-      - name: Change LITELOADER_VERSION_COMMIT_SHA
-        working-directory: ${{ env.GITHUB_WORKSPACE }}
-        run: |
-          sed -r -i 's/#define\s+LITELOADER_VERSION_COMMIT_SHA\s+.*/#define LITELOADER_VERSION_COMMIT_SHA  ${{ steps.sha_short.outputs.sha_short }}\r/' LiteLoader/include/liteloader/Version.h
+          mkdir LiteLoader/lib
+          cd tools
+          ./PeEditor.exe -l --pdb Server/bedrock_server.pdb -o ../LiteLoader/lib
         shell: bash
 
-      - name: Change LITELOADER_VERSION_STATUS_BETA
+      - name: Set LITELOADER_VERSION_COMMIT_SHA
         working-directory: ${{ env.GITHUB_WORKSPACE }}
-        if: github.ref == 'refs/heads/beta'
+        run: |
+          export sha_short=$(git rev-parse --short HEAD)
+          sed -r -i "s/#define\s+LITELOADER_VERSION_COMMIT_SHA\s+.*/#define LITELOADER_VERSION_COMMIT_SHA $sha_short\r/" LiteLoader/include/liteloader/Version.h
+        shell: bash
+
+      - name: Set LITELOADER_VERSION_STATUS_BETA
+        working-directory: ${{ env.GITHUB_WORKSPACE }}
+        if: github.event.inputs.status == 'beta'
         run: |
           sed -r -i 's/#define\s+LITELOADER_VERSION_STATUS\s+LITELOADER_VERSION_\w+/#define LITELOADER_VERSION_STATUS   LITELOADER_VERSION_BETA/' LiteLoader/include/liteloader/Version.h
         shell: bash
 
-      - name: Change LITELOADER_VERSION_STATUS_RELEASE
+      - name: Set LITELOADER_VERSION_STATUS_RELEASE
         working-directory: ${{ env.GITHUB_WORKSPACE }}
-        if: github.ref == 'refs/heads/main'
+        if: github.event.inputs.status == 'stable'
         run: |
           sed -r -i 's/#define\s+LITELOADER_VERSION_STATUS\s+LITELOADER_VERSION_\w+/#define LITELOADER_VERSION_STATUS   LITELOADER_VERSION_RELEASE/' LiteLoader/include/liteloader/Version.h
         shell: bash
 
-      - name: Configure CMake(MSVC)
+      - name: Configure CMake (MSVC)
         run: |
           cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
         shell: cmd
 
-      - name: Build
+      - name: Build all
         run: |
           cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
         shell: cmd
 
-      - name: Pack output and SDK
+      - name: Pack output
         run: |
           cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target PackOutput
+        shell: cmd
+
+      - name: Pack SDK
+        run: |
           cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}} --target PackSDK
         shell: cmd
 
-      - name: Configure CMake(ClangCL)
+      - name: Configure CMake (ClangCL)
         run: |
           cmake -B ${{github.workspace}}/build_clang -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -T clangcl
         shell: cmd
 
       - name: Build SymDBHelper
-        run: cmake --build ${{github.workspace}}/build_clang --config ${{env.BUILD_TYPE}} --target SymDBHelper
-
-      - name: Update LiteLoaderSDK
-        working-directory: ${{ env.GITHUB_WORKSPACE }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cd scripts
-          ./UploadSDK.cmd action release
-        env:
-          REPO_KEY: ${{secrets.PUSH_TOKEN}}
-          USERNAME: github-actions[bot]
-        shell: cmd
+          cmake --build ${{github.workspace}}/build_clang --config ${{env.BUILD_TYPE}} --target SymDBHelper
+          cp .\build_clang\sdk\lib\SymDBHelper.lib .\build\sdk\lib\SymDBHelper.lib
 
-      - name: Compress Resource Packs
+      - name: Compress resource packs for LiteLoaderBDS
         run: |
           cd build/output/plugins/LiteLoader/ResourcePacks
           7z a LiteLoaderBDS-CUI.tar LiteLoaderBDS-CUI
           rm -r LiteLoaderBDS-CUI
         shell: bash
 
-      - name: Pack PDB for Release
+      - name: Download Dependencies
         working-directory: ${{ env.GITHUB_WORKSPACE }}
-        run: 7z a -tzip PDB.zip build/pdb
-        shell: bash
-
-      - name: Pack Release
-        working-directory: ${{ github.workspace }}/build/output
-        id: rel
         run: |
-          7z a -y -tzip -mmt -mx=9 ../../LiteLoader-${{ github.event.inputs.tag }}.zip *
+          mkdir LL-Dependencies
+          git clone https://github.com/Tooth-Hub/LLMoney.git LL-Dependencies/LLMoney-bin
+          cp LL-Dependencies/LLMoney-bin/LLMoney.dll build/output/plugins/
+          git clone https://github.com/Tooth-Hub/CrashLogger.git LL-Dependencies/CrashLogger-bin
+          cp LL-Dependencies/CrashLogger-bin/CrashLogger.exe build/output/plugins/LiteLoader/
+          cp LL-Dependencies/CrashLogger-bin/*.dll build/output/plugins/LiteLoader/
+          git clone https://github.com/Tooth-Hub/PeEditor.git LL-Dependencies/PeEditor-bin
+          cp LL-Dependencies/PeEditor-bin/PeEditor.exe build/output/
         shell: bash
 
-      - name: Create New Release
+      - name: Update C++ SDK
+        working-directory: ${{ env.GITHUB_WORKSPACE }}
+        run: |
+          mkdir ~/.ssh
+          touch ~/.ssh/known_hosts
+          ssh-keygen -R github.com
+          curl -L https://api.github.com/meta | jq -r '.ssh_keys | .[]' | sed -e 's/^/github.com /' >> ~/.ssh/known_hosts
+          echo "-----BEGIN OPENSSH PRIVATE KEY-----" >> ~/.ssh/id_rsa
+          echo ${{secrets.DEPLOY_KEY}} >> ~/.ssh/id_rsa
+          echo "-----END OPENSSH PRIVATE KEY-----" >> ~/.ssh/id_rsa
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cd scripts
+          cmd //c "UpdateSDK.cmd action release"
+        shell: bash
+
+      - name: Upload LiteLoaderBDS
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: LiteLoaderBDS
+          path: |
+            ${{ github.workspace }}\build\output\
+
+      - name: Upload PDB files
+        uses: actions/upload-artifact@v3.1.0
+        with:
+          name: PDB
+          path: ${{ github.workspace }}\build\pdb\
+
+  publish_release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: build/
+
+      - name: Pack artifacts
+        run: |
+          cd build/
+          zip -9r LiteLoaderBDS.zip LiteLoaderBDS/*
+          zip -9r PDB.zip PDB/*
+        shell: bash
+
+      - name: Create release
+        if: github.event.inputs.status == 'stable'
         uses: ncipollo/release-action@v1
         with:
-          prerelease: ${{ github.ref != 'refs/heads/main' }}
+          prerelease: false
           tag: ${{ github.event.inputs.tag }}
-          bodyFile: ${{ github.workspace }}\CHANGELOG.md
           artifacts: |
-            ${{ github.workspace }}\LiteLoader-${{ github.event.inputs.tag }}.zip
-            ${{ github.workspace }}\PDB.zip
+            build/LiteLoaderBDS.zip
+            build/PDB.zip
+        env:
+          GITHUB_REPOSITORY: LiteLDev/LiteLoaderBDS
+
+      - name: Create pre-release
+        if: github.event.inputs.status != 'stable'
+        uses: ncipollo/release-action@v1
+        with:
+          prerelease: true
+          tag: ${{ github.event.inputs.tag }}
+          artifacts: |
+            build/LiteLoaderBDS.zip
+            build/PDB.zip
         env:
           GITHUB_REPOSITORY: LiteLDev/LiteLoaderBDS

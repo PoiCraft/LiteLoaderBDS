@@ -30,6 +30,8 @@ copies or substantial portions of the Software.
 #include "llapi/mc/AABB.hpp"
 #include "llapi/mc/EnderDragon.hpp"
 #include "llapi/mc/BlockLegacy.hpp"
+#include "llapi/mc/ItemActor.hpp"
+#include "llapi/mc/FishingHook.hpp"
 
 class Actor;
 class ServerPlayer;
@@ -110,9 +112,7 @@ private:
     bool deleted = false;
 
 public:
-    explicit EventListener(int id)
-    : listenerId(id) {
-    }
+    explicit EventListener(int id) : listenerId(id) {}
 
     /**
      * @brief Stop listening to the event and remove the event listener.
@@ -171,7 +171,6 @@ public:
     bool callToPlugin(std::string pluginName) {
         return EventManager<EVENT>::callToPlugin(pluginName, *(EVENT*)this);
     }
-
 
     ////////////////////// For compatibility DO NOT UPDATE //////////////////////
 protected:
@@ -232,6 +231,16 @@ public:
     Vec3 mClickPos;
 };
 
+class PlayerPullFishingHookEvent : public EventTemplate<PlayerPullFishingHookEvent> {
+public:
+    
+    Player* mPlayer = nullptr;
+    FishingHook* mFishingHook = nullptr;
+    Actor* mActor = nullptr;
+    ItemActor* mItemActor = nullptr;
+    ItemStack* mItemStack = nullptr;
+};
+
 /**
  * @brief An event that fires as players use bucket.
  *
@@ -285,7 +294,8 @@ class PlayerAttackEvent : public EventTemplate<PlayerAttackEvent> {
 public:
     Player* mPlayer = nullptr;
     Actor* mTarget = nullptr;
-    int mAttackDamage = false;
+    [[deprecated("mIntAttackDamage is outdated, please use mAttackDamage instead")]] int mIntAttackDamage = 0;
+    float mAttackDamage = 0;
 };
 
 class PlayerAttackBlockEvent : public EventTemplate<PlayerAttackBlockEvent> {
@@ -332,13 +342,13 @@ class PlayerEatEvent : public EventTemplate<PlayerEatEvent> {
 public:
     Player* mPlayer;
     ItemStack* mFoodItem;
-}; 
+};
 
 class PlayerAteEvent : public EventTemplate<PlayerAteEvent> {
 public:
     Player* mPlayer;
     ItemStack* mFoodItem;
-}; 
+};
 
 class PlayerConsumeTotemEvent : public EventTemplate<PlayerConsumeTotemEvent> {
 public:
@@ -541,15 +551,19 @@ public:
 class HopperSearchItemEvent : public EventTemplate<HopperSearchItemEvent> {
 public:
     bool isMinecart = false;
-    BlockInstance mHopperBlock;
-    Vec3 mMinecartPos;
+    [[deprecated("mHopperBlock is outdated, please use Level::getBlockInstance() instead to get it")]] BlockInstance mHopperBlock;
+    [[deprecated("mMinecartPos is outdated, please use mPos instead")]] Vec3 mMinecartPos;
     int mDimensionId = -1;
+    ItemStack* mItemStack;
+    Vec3 mPos;
 };
 
 class HopperPushOutEvent : public EventTemplate<HopperPushOutEvent> {
 public:
     Vec3 mPos;
     int mDimensionId = -1;
+    ItemStack* mItemStack;
+    bool isMinecart = false;
 };
 
 class PistonTryPushEvent : public EventTemplate<PistonTryPushEvent> {
@@ -635,12 +649,6 @@ public:
     AABB mDestroyRange{{}, {}};
 };
 
-class EnderDragonDestroyEvent : public EventTemplate<EnderDragonDestroyEvent> {
-public:
-    EnderDragon* mEnderDragon = nullptr;
-    BlockLegacy* mBlockLegacy = nullptr;
-};
-
 class EntityRideEvent : public EventTemplate<EntityRideEvent> {
 public:
     Actor* mRider = nullptr;
@@ -651,13 +659,6 @@ class EntityStepOnPressurePlateEvent : public EventTemplate<EntityStepOnPressure
 public:
     Actor* mActor = nullptr;
     BlockInstance mBlockInstance;
-};
-
-class NpcCmdEvent : public EventTemplate<NpcCmdEvent> {
-public:
-    Actor* mNpc = nullptr;
-    std::string mCommand;
-    Player* mPlayer = nullptr;
 };
 
 class ProjectileSpawnEvent : public EventTemplate<ProjectileSpawnEvent> {
@@ -686,15 +687,6 @@ public:
     Actor* mAfterEntity = nullptr;
 };
 
-class MobSpawnEvent : public EventTemplate<MobSpawnEvent> {
-public:
-    [[deprecated("MobSpawnEvent is outdated, please use MobTrySpawnEvent instead")]]
-    string mTypeName;
-    Vec3 mPos;
-    int mDimensionId = -1;
-};
-
-
 class MobTrySpawnEvent : public EventTemplate<MobTrySpawnEvent> {
 public:
     string mTypeName;
@@ -714,19 +706,16 @@ public:
 /* region ## Other Events ## */
 ///////////////////////////// Other Events /////////////////////////////
 
-class PostInitEvent : public EventTemplate<PostInitEvent> {
-};
+class PostInitEvent : public EventTemplate<PostInitEvent> {};
 
 /**
  * @brief An event that fires as the server has started.
  *
  * @note This event cannot be suppressed.
  */
-class ServerStartedEvent : public EventTemplate<ServerStartedEvent> {
-};
+class ServerStartedEvent : public EventTemplate<ServerStartedEvent> {};
 
-class ServerStoppedEvent : public EventTemplate<ServerStoppedEvent> {
-};
+class ServerStoppedEvent : public EventTemplate<ServerStoppedEvent> {};
 
 class ConsoleCmdEvent : public EventTemplate<ConsoleCmdEvent> {
 public:
