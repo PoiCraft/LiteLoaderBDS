@@ -35,7 +35,7 @@ bool ll::CrashLogger::startCrashLoggerProcess() {
     wchar_t daemonCmd[MAX_PATH];
     std::string serverVersion =
         fmt::format("{}.{:0>2}", Common::getGameVersionStringNet(), SharedConstants::RevisionVersion);
-    wsprintf(daemonCmd, L"%ls %u \"%ls\"", str2wstr(globalConfig.crashLoggerPath).c_str(), GetCurrentProcessId(),
+    wsprintf(daemonCmd, L"%ls -p %u -b \"%ls\"", str2wstr(globalConfig.crashLoggerPath).c_str(), GetCurrentProcessId(),
              str2wstr(serverVersion).c_str());
     if (!CreateProcess(nullptr, daemonCmd, &sa, &sa, TRUE, 0, nullptr, nullptr, &si, &pi)) {
         crashLogger.error(tr("ll.crashLogger.error.cannotCreateDaemonProcess"));
@@ -49,9 +49,9 @@ bool ll::CrashLogger::startCrashLoggerProcess() {
 }
 
 void ll::CrashLogger::initCrashLogger(bool enableCrashLogger) {
-    constexpr auto DEPRECATED_CRASH_LOGGER_PATH = "plugins/LiteLoader/CrashLogger.dll";
+    // constexpr auto DEPRECATED_CRASH_LOGGER_PATH = "plugins/LiteLoader/CrashLogger.dll";
     // Remove deprecated CrashLogger
-    std::filesystem::remove(DEPRECATED_CRASH_LOGGER_PATH);
+    // std::filesystem::remove(DEPRECATED_CRASH_LOGGER_PATH);
 
     if (!enableCrashLogger) {
         crashLogger.warn(tr("ll.crashLogger.warning.crashLoggerDisabled.1"));
@@ -61,7 +61,7 @@ void ll::CrashLogger::initCrashLogger(bool enableCrashLogger) {
         crashLogger.warn(tr("ll.crashLogger.warning.crashLoggerDisabled.4"));
         return;
     }
-    string noCrashLoggerReason;
+    //string noCrashLoggerReason;
 
     // Get file list
     filesystem::directory_iterator ent("plugins");
@@ -69,17 +69,18 @@ void ll::CrashLogger::initCrashLogger(bool enableCrashLogger) {
     for (auto& i : ent) {
         if (i.is_regular_file() && i.path().extension() == ".dll") {
             auto path = i.path().string();
-
             // Check crashLogger
+            /*
             for (auto name : ll::NO_CRASH_LOGGER_PLUGIN_LIST) {
                 if (path.find(name) != string::npos) {
                     noCrashLoggerReason = string(name) + ".dll";
                     break;
                 }
             }
+            */
         }
     }
-
+    /*
     if (!noCrashLoggerReason.empty()) {
         // Plugin conflicts with CrashLogger
         crashLogger.warn(tr("ll.crashLogger.warning.conflicts.1", noCrashLoggerReason));
@@ -90,7 +91,7 @@ void ll::CrashLogger::initCrashLogger(bool enableCrashLogger) {
         crashLogger.warn(tr("ll.crashLogger.warning.conflicts.5", noCrashLoggerReason));
         return;
     }
-
+    */
     // Start CrashLogger
     if (startCrashLoggerProcess()) {
         // Logger::Info("CrashLogger Daemon Process attached.");

@@ -15,10 +15,14 @@
 #include "api/CommandAPI.h"
 #include "api/EventAPI.h"
 #include <llapi/utils/Hash.h>
+
 #ifdef LLSE_BACKEND_NODEJS
 #pragma warning(disable : 4251)
 #include "main/NodeJsHelper.h"
+#elif defined(LLSE_BACKEND_PYTHON)
+#include "main/PythonHelper.h"
 #endif
+
 #define H(x) do_hash(x)
 using namespace std;
 
@@ -37,6 +41,7 @@ string RemoveRealAllExtension(string fileName) {
 // - This function must be called in correct backend
 // - "filePath" can be a single-file plugin path, or a .llplugin compressed package path
 // or a dir path which contains uncompressed plugin package
+// * if mustBeCurrectModule == true and not-current-module plugin is found, will throw exception
 bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad, bool mustBeCurrentModule) {
     if (fileOrDirPath == LLSE_DEBUG_ENGINE_NAME)
         return true;
@@ -90,14 +95,16 @@ bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad,
     else if (backendType != LLSE_BACKEND_TYPE)
     {
         // Unmatched backend
-        // logger.error(pluginFileName + " is not a plugin of " + LLSE_BACKEND_TYPE + " engine!");
+        if(mustBeCurrentModule)
+            throw Exception("Plugin of not matched backend given!");
         return false;
     }
     
     // Plugin package
     if (isPluginPackage)
     {
-        return loadPluginPackage(realPath, fileOrDirPath, isHotLoad);
+        bool isUncompressedFirstTime = (realPath != fileOrDirPath);
+        return loadPluginPackage(realPath, fileOrDirPath, isHotLoad, isUncompressedFirstTime);
     }
 
     // Single file plugin
@@ -109,13 +116,8 @@ bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad,
 
     ScriptEngine* engine = nullptr;
     try {
-        auto scripts = ReadAllFile(realPath);
-        if (!scripts) {
-            throw std::runtime_error("Fail to open plugin file!");
-        }
-
         // Create script engine
-        engine = EngineManager::newEngine();
+        engine = EngineManager::newEngine("", isHotLoad);
         EngineScope enter(engine);
 
         // setData
@@ -133,7 +135,8 @@ bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad,
         // Load depend libs
         try {
             for (auto& [path, content] : depends) {
-                engine->eval(content, path);
+                if(!content.empty())
+                    engine->eval(content, path);
             }
         } catch (const Exception& e) {
             logger.error("Fail in Loading Dependence Lib!\n");
@@ -142,10 +145,23 @@ bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad,
 
         // Load script
         try {
-            engine->eval(*scripts, ENGINE_OWN_DATA()->pluginFileOrDirPath);
-        } catch (const Exception& e) {
-            logger.error("Fail in Loading Script Plugin!\n");
-            throw;
+            // Try use loadFile
+            engine->loadFile(realPath);
+        } 
+        catch (const Exception& e1) {
+            try{
+                // loadFile failed. Try use eval instead
+                auto scripts = ReadAllFile(realPath);
+                if (!scripts) {
+                    throw std::runtime_error("Fail to open plugin file!");
+                }
+                engine->eval(*scripts, ENGINE_OWN_DATA()->pluginFileOrDirPath);
+            } 
+            catch (const Exception& e2) {
+                // Fail
+                logger.error("Fail in Loading Script Plugin!\n");
+                throw e1;       // throw the original exception out
+            }
         }
         std::string const& pluginName = ENGINE_OWN_DATA()->pluginName;
         ExitEngineScope exit;
@@ -194,18 +210,21 @@ bool PluginManager::loadPlugin(const std::string& fileOrDirPath, bool isHotLoad,
 
 // Load plugin package
 // This function must be called in correct backend
-bool PluginManager::loadPluginPackage(const std::string& dirPath, const std::string& packagePath, bool isHotLoad)
+bool PluginManager::loadPluginPackage(const std::string& dirPath, const std::string& packagePath, bool isHotLoad, bool isUncompressedFirstTime)
 {
-    // "dirPath" is always public temp dir (LLSE_PLUGIN_PACKAGE_TEMP_DIR)
+    // "dirPath" is public temp dir (LLSE_PLUGIN_PACKAGE_TEMP_DIR) or normal plugin dir
+    // "packagePath" will point to plugin package path if isUncompressedFirstTime == true
     if (!filesystem::is_directory(dirPath))
         return false;
     bool result = false;
 
 #ifdef LLSE_BACKEND_NODEJS
     result = NodeJsHelper::loadNodeJsPlugin(dirPath, packagePath, isHotLoad);
+#elif defined(LLSE_BACKEND_PYTHON)
+    result = PythonHelper::loadPythonPlugin(dirPath, packagePath, isHotLoad);
 #endif
 
-    if (result)
+    if (result && isUncompressedFirstTime)
     {
         // OK now. Delete installed plugin package
         std::error_code ec;
@@ -263,7 +282,11 @@ bool PluginManager::reloadPlugin(const std::string& name) {
     string filePath = plugin->filePath;
     if (!PluginManager::unloadPlugin(name))
         return false;
-    return PluginManager::loadPlugin(filePath, true, true);
+    try{
+        return PluginManager::loadPlugin(filePath, true, true);
+    }catch(...){
+        return false;
+    }
 }
 
 // Reload all plugins

@@ -10,7 +10,7 @@ set(LLSE_BACKEND_LIBRARY Lua)
 
 include(../../CMakeLists.txt)
 
-target_include_directories(${PROJECT_NAME} PRIVATE ${SCRIPTENGINE_SOURCE_DIR}/third-party/include/Lua/)
+target_include_directories(${PROJECT_NAME} PRIVATE ${SCRIPTENGINE_SOURCE_DIR}/third-party/backend/include/Lua/)
 
 # copy target DLL and PDB to output directory
 add_custom_command(
@@ -20,3 +20,14 @@ add_custom_command(
         COMMENT "Copying ${PROJECT_NAME} DLL and PDB to output directory"
         VERBATIM
 )
+
+if(NOT "${BDS_LOCAL_DEV_ENVIRONMENT_DIR}" STREQUAL "")
+    # copy target DLL and PDB to local bds dev directory
+        add_custom_command(
+                TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${PROJECT_NAME}> ${BDS_LOCAL_DEV_ENVIRONMENT_DIR}/plugins/LiteLoader/LiteLoader.Lua.dll
+                COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_PDB_FILE:${PROJECT_NAME}> ${BDS_LOCAL_DEV_ENVIRONMENT_DIR}/plugins/LiteLoader/pdb/LiteLoader.Lua.pdb
+                COMMENT "Copying ${PROJECT_NAME} DLL and PDB to local bds dev directory"
+                VERBATIM
+        )
+endif()

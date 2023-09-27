@@ -2,6 +2,7 @@
 #include "llapi/mc/BlockLegacy.hpp"
 #include "llapi/mc/BlockSource.hpp"
 #include "llapi/mc/ComposterBlock.hpp"
+
 Block* BlockLegacy::toBlock(unsigned short tileData) {
     auto* bl = const_cast<Block*>(&getStateFromLegacyData(tileData));
     if (bl && &bl->getLegacyBlock() == (BlockLegacy*)this)
@@ -10,7 +11,7 @@ Block* BlockLegacy::toBlock(unsigned short tileData) {
 }
 
 string BlockLegacy::getTypeName() {
-    return dAccess<string, 128>(this);
+    return dAccess<string, 160>(this);
 }
 
 bool BlockLegacy::applyBoneMeal(class BlockSource* a1, class BlockPos const& a2) {

@@ -2,15 +2,15 @@
 #include "llapi/mc/ItemActor.hpp"
 
 ItemStack* ItemActor::getItemStack() {
-    return (ItemStack*)((uintptr_t)this + 1464); // IDA Player::take
+    return &dAccess<ItemStack, 1184>(this); // IDA Player::take
 }
 
 int ItemActor::getDespawnTime() {
-    return dAccess<int, 411 * 4>(this); // ItemActor::postNormalTick
+    return dAccess<int, 341 * 4>(this); // ItemActor::postNormalTick
 }
 
 bool ItemActor::setDespawnTime(int a1) {
-    dAccess<int, 411 * 4>(this) = a1;
+    dAccess<int, 341 * 4>(this) = a1;
     return true;
 }
 
@@ -20,5 +20,5 @@ bool ItemActor::setDespawnTime(int a1) {
 
 
 int ItemActor::getLatestSpawnTime() {
-    return dAccess<int, 406 * 4>(this);
+    return dAccess<int, 336 * 4>(this);
 }

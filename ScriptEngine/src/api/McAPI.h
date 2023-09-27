@@ -19,6 +19,7 @@ public:
     static Local<Value> getPlayer(const Arguments& args);
     static Local<Value> getOnlinePlayers(const Arguments& args);
     static Local<Value> getAllEntities(const Arguments& args);
+    static Local<Value> getEntities(const Arguments& args);
 
     static Local<Value> newItem(const Arguments& args);
     static Local<Value> spawnMob(const Arguments& args);
@@ -59,5 +60,15 @@ public:
     static Local<Value> setPlayerNbt(const Arguments& args);
     static Local<Value> setPlayerNbtTags(const Arguments& args);
     static Local<Value> deletePlayerNbt(const Arguments& args);
+    static Local<Value> getPlayerScore(const Arguments& args);
+    static Local<Value> setPlayerScore(const Arguments& args);
+    static Local<Value> addPlayerScore(const Arguments& args);
+    static Local<Value> reducePlayerScore(const Arguments& args);
+    static Local<Value> deletePlayerScore(const Arguments& args);
+
+    static Local<Value> getTime(const Arguments& args);
+    static Local<Value> setTime(const Arguments& args);
+    static Local<Value> getWeather(const Arguments& args);
+    static Local<Value> setWeather(const Arguments& args);
 };
 extern ClassDefine<void> McClassBuilder;

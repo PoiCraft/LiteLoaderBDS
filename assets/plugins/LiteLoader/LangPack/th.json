@@ -12,7 +12,7 @@
       "checkRunningBDS": {
         "detected": "ตรวจพบการทำงาน BDS อื่นในตำแหน่งเดียวกัน!",
         "tip": "ซึ่งอาจทำให้เครือข่ายพอร์ตและระดับถูกครอบครอง",
-        "ask": "คุณต้องการยุติการทำงานของ PID {} หรือไม่? (y=ใช่ n=ไม่ใช่)"
+        "ask": "คุณต้องการยุติการทำงานของ PID {} หรือไม่? (y=ใช่ n=ไม่ใช่, e=ยกเลิก)"
       },
       "fixAllowList": {
         "removeEmptyAllowlist": "allowlist.json ว่างเปล่า! กำลังลบ...",
@@ -27,6 +27,13 @@
           "1": "เวอร์ชันโปรโตคอลไม่ตรงกัน เวอร์ชันที่ต้องการ: {}, ขณะนี้ใช้เวอร์ชั่น: {}",
           "2": "ดำเนินการนี้จะทำให้เซิร์ฟเวอร์มีปัญหา โปรดใช้ LiteLoader ที่ตรงกับเวอร์ชั่น BDS!"
         }
+      },
+      "bstats": {
+        "enabled": "bStats เปิดใช้งานแล้ว คุณสามารถแก้ไข plugin/bStats/config.json เพื่อปิดใช้การงานได้"
+      },
+      "unpackResources": {
+        "begin": "Unpacking LiteLoaderBDS runtime resources. Please wait patiently...",
+        "end": "Unpacked."
       }
     },
     "antiAbnormalItem": {
@@ -73,6 +80,29 @@
       "reloadAllPlugins": {
         "success": "ปลั๊กอิน {} รีโหลดสำเร็จ",
         "fail": "ไม่สามารถรีโหลดปลั๊กอินใดๆ"
+      },
+      "settings": {
+        "set": {
+          "success": "ตั้งค่า {} เป็น {} สำเร็จแล้ว"
+        },
+        "get": {
+          "success": "การตั้งค่ารับ {} สำเร็จ ค่า: "
+        },
+        "delete": {
+          "success": "ลบตั้งค่า {} เรียบร้อยแล้ว",
+          "error": {
+            "emptyKey": "JsonPointer ต้องไม่ว่างเปล่า!"
+          }
+        },
+        "reload": {
+          "success": "รีโหลดการตั้งค่าเรียบร้อยแล้ว"
+        },
+        "save": {
+          "success": "บันทึกการตั้งค่าเรียบร้อยแล้ว"
+        },
+        "list": {
+          "success": "รายการตั้งค่า:"
+        }
       },
       "error": {
         "noPathSpecified": "คุณต้องระบุตำแหน่งที่ถูกต้องของปลั๊กอิน LiteLoader!",
@@ -190,8 +220,8 @@
       "initNodeJsDirectories": {
         "created": "ไม่พบตำแหน่ง RunTime NodeJs, สร้างใหม่แล้ว"
       },
-      "loadPermissionAPI": {
-        "success": "* PermissionAPI loaded."
+      "initPythonDirectories": {
+        "created": "Python runtime directory no found, created."
       }
     },
     "notice": {
@@ -215,6 +245,12 @@
       "reloadPlugin": {
         "fail": "ไม่สามารถรีโหลดปลั๊กอิน {}!"
       }
+    },
+    "unzipNodeModules": {
+      "fail": "ล้มเหลวในการแยกไฟล์ node_modules.tar"
+    },
+    "unzipPythonModules": {
+      "fail": "Failed to unzip python-env.zip"
     }
   },
   "llse": {
@@ -258,6 +294,13 @@
         "loadedPlugin": "ปลั๊กอิน {type} <{name}> โหลดแล้ว",
         "installPluginPack": {
           "done": "{count} {type} ปลั๊กอินแพ็คติดตั้งแล้ว"
+        },
+        "python": {
+          "ignored": "No pyproject.toml file found in directory {path}, ignored.",
+          "installPack": {
+            "start": "Found Python plugin pack \"{path}\"! Try installing...",
+            "fail": "Failed to install plugin pack {}, please check the source files!"
+          }
         }
       },
       "nodejs": {
@@ -268,6 +311,13 @@
         },
         "register": {
           "fail": "ไม่สามารถลงทะเบียนปลั๊กอิน {name} ได้!"
+        }
+      },
+      "python": {
+        "executePipInstall": {
+          "start": "Executing \"pip install\" for plugin {name}...",
+          "success": "Pip finished successfully.",
+          "fail": "Error occurred. Exit code: {code}"
         }
       }
     }
@@ -289,7 +339,7 @@
         "invalidCommand": "คำสั่งไม่ถูกต้อง พิมพ์  '/help perm' เพื่อรับการช่วยเหลือ",
         "internal": "เกิดข้อผิดพลาด โปรดลองอีกครั้งในภายหลัง",
         "roleAlreadyExists": "มีบทบาทผู้ใช้อยู่แล้ว",
-        "permissionAlreadyExists": "มีการอนุญาตอยู่แล้ว",
+        "permissionAlreadyExists": "มี Permission อยู่แล้ว",
         "invalidPermissionName": "ชื่อ Permission ไม่ถูกต้อง",
         "roleNotFound": "ไม่พบบทบาท",
         "permissionNotFound": "ไม่พบ Permission",
@@ -379,9 +429,9 @@
                 "success": "Permission {name}§r ลบบทบาท {roleDisplayName}§r."
               },
               "set": {
-                "enabled": "§aเปิดใช้งาน",
-                "disabled": "§cปิดใช้งาน",
-                "success": "Permission {name}§r ของบทบาท {roleDisplayName}§r ตั้งค่าเป็น {enable}."
+                "enabled": "§aเปิดใช้งาน§r",
+                "disabled": "§cปิดใช้งาน§r",
+                "success": "Permission {name}§r ของบทบาท {roleDisplayName}§r ตั้งค่าเป็น {enable}"
               }
             },
             "priority": {
@@ -391,7 +441,7 @@
             },
             "displayName": {
               "set": {
-                "success": "ชื่อที่แสดงของบทบาท <{roleName}§r> ตั้งค่าเป็น {displayName}"
+                "success": "ชื่อที่แสดงของบทบาท <{roleName}§r> ตั้งค่าเป็น {displayName}§r"
               }
             }
           },
@@ -408,6 +458,18 @@
         },
         "noDesc": "[ไม่มีคำอธิบาย]",
         "permissionNameExamples": "ตัวอย่างชื่อ Permission: 'Namespace:PermissionName', 'a:b:c:d_e_f.g'"
+      }
+    }
+  },
+  "llseapi": {
+    "require": {
+      "fail": "Plugin which is required by {0} not found.",
+      "success": "Plugin named {0} which is required by {1} loaded.",
+      "network": {
+        "fail": "Error occurred when download plugin which is required by {0}, http code: {1}"
+      },
+      "download": {
+        "success": "Download plugin which is required by {0} successfully, path {1}."
       }
     }
   }

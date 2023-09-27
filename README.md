@@ -1,16 +1,20 @@
 # LiteLoaderBDS - Epoch-making & Cross-language Bedrock Dedicated Servers Plugin Loader
 
-[![status](https://img.shields.io/github/workflow/status/LiteLDev/LiteLoader/Build%20LiteLoader?style=for-the-badge)](https://github.com/LiteLDev/LiteLoader/actions)
+[![status](https://img.shields.io/github/actions/workflow/status/LiteLDev/LiteLoaderBDS/build.yml?style=for-the-badge)](https://github.com/LiteLDev/LiteLoaderBDS/actions)
 [![Discord](https://img.shields.io/discord/849252980430864384?color=blue&label=Discord&style=for-the-badge)](https://discord.gg/27KTrxHc9t)
 [![Telegram](https://img.shields.io/badge/telegram-LiteLoader-%232CA5E0?style=for-the-badge&logo=Telegram)](https://t.me/liteloader)
 [
-![Latest Tag](https://img.shields.io/github/v/tag/LiteLDev/LiteLoader?label=LATEST%20TAG&style=for-the-badge)
-![GitHub Releases (by Asset)](https://img.shields.io/github/downloads/LiteLDev/LiteLoader/latest/total?style=for-the-badge)
-](https://github.com/LiteLDev/LiteLoader/releases/latest)  
+![Latest Tag](https://img.shields.io/github/v/tag/LiteLDev/LiteLoaderBDS?label=LATEST%20TAG&style=for-the-badge)
+![GitHub Releases (by Asset)](https://img.shields.io/github/downloads/LiteLDev/LiteLoaderBDS/latest/total?style=for-the-badge)
+](https://github.com/LiteLDev/LiteLoaderBDS/releases/latest)  
 QQ Group: [656669024](https://jq.qq.com/?_wv=1027&k=lagwtrfh) QQ Group
 2: [850517473](https://jq.qq.com/?_wv=1027&k=zeUbrETH)
 
 ##### English | [简体中文](README_zh-cn.md)
+
+## ⚠️ Warning
+### We are currently working on 3.0 to ensure minimal impact on users. Until version 3.0 is completed, we will continue to adapt and support 2.0 (without fixing any bugs, only ensuring normal functionality).
+
 
 ![LiteLoaderBDS](https://socialify.git.ci/LiteLDev/LiteLoaderBDS/image?description=1&font=KoHo&forks=1&issues=1&logo=https%3A%2F%2Fgithub.com%2FLiteLDev%2Fdocs%2Fraw%2Fmain%2Fassets%2FLogo.png&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Light)
 
@@ -22,7 +26,7 @@ infrastructure interfaces, providing a solid foundation for extending the Bedroc
 functionality. With plugins, it is easy to extend the functionality of BDS, the associated development is easy to learn,
 and the development approach is flexible.
 
-Writing plugins in **C++, JavaScript, Lua, C#**  and other languages, which allows developers to easily extend and
+Writing plugins in **C++, JavaScript, Lua, Python, C#**  and other languages, which allows developers to easily extend and
 customize **BDS** functionality,
 making it easy to learn and extremely flexible.
 
@@ -39,11 +43,11 @@ making it easy to learn and extremely flexible.
 ```c++
 // Template project: https://github.com/LiteLDev/PluginTemplate
 // More examples: https://github.com/LiteLDev/LiteLoaderPlugins
-#include <EventAPI.h>
-#include <LoggerAPI.h>
-#include <LLAPI.h>
-#include <MC/Actor.hpp>
-#include <MC/Player.hpp>
+#include <llapi/EventAPI.h>
+#include <llapi/LoggerAPI.h>
+#include <llapi/LLAPI.h>
+#include <llapi/mc/Actor.hpp>
+#include <llapi/mc/Player.hpp>
 
 Logger logger("AttackLog");
 
@@ -84,13 +88,13 @@ mc.listen("onServerStarted", () => {
 
 <br/>
 
-## 💎 Advantage
+## 💎 Advantages
 
 - 💻 Support for developing plugins in many different languages, Keeping the API uniform
 
-| Supported languages              | `C++`, `JavaScript(NodeJs)`, `Lua`, `.NET` |
-| -------------------------------- |--------------------------------------------|
-| **Upcoming supported languages** | `Python`, `Ruby`, `TypeScript`, `Go`        |
+| Supported languages              | `C++`, `JavaScript(Node.js)`, `Lua`, `Python`,`.NET` |
+| -------------------------------- | ---------------------------------------------------- |
+| **Upcoming supported languages** | `Ruby`, `TypeScript`, `Go`                           |
 
 - 📕 Smooth development experience with great compatibility
     - Auto-generated C++ headers, access to all `BDS` classes and functions, full toolchain support and evolving
@@ -125,101 +129,19 @@ mc.listen("onServerStarted", () => {
 
 ------
 
-## 💻 Install
+## 💻 Install LiteLoaderBDS
 
-### For Windows
+Refer to the [installation guide](https://docs.litebds.com/en/#/Usage?id=%f0%9f%92%bb-install-liteloaderbds) to install LiteLoaderBDS.
 
-1. Download the latest <code>LiteLoader-<i>version</i>.zip</code>
-   from [Releases](https://github.com/LiteLDev/LiteLoader/releases)
-   or [Actions](https://github.com/LiteLDev/LiteLoader/actions),
-2. Unzip everything into the directory of `bedrock_server.exe`. If you are prompted with conflicting files during the
-   decompression process, just select `Overwrite`.
-3. Ensure that the `bedrock_server.pdb` file exists.
-   Run `LLPeEditor.exe` to generate the BDS with the exported symbols (`bedrock_server_mod.exe`)
-4. When the console output `Press any key to continue . . .` , press any key to close the window
-5. Execute `bedrock_server_mod.exe` and enjoy it!
+## 🎯 Install plugins
 
-### For Linux
-
-We do not recommend you to use Wine due to BDS 1.19.20+ on Wine has a performance problem
-
-#### Installation script(Ubuntu)
-
-```
-wget https://github.com/LiteLDev/LiteLoaderBDS/raw/develop/scripts/install.sh
-chmod +x install.sh
-./install.sh
-```
-
-#### Docker
-
-Enter the following lines in your terminal:
-
-```
-docker pull shrbox/liteloaderbds
-mkdir <install directory>
-docker create --name llbds -v <install directory>:/root/bedrock-server -p 19132:19132/udp -i -t shrbox/liteloaderbds
-```
-
-`<install directory>` is directory to store data, for example: `/home/shrbox/bedrock-server`  
-The first boot takes a little while to download the Bedrock Dedicated Server and LiteLoaderBDS  
-Start server: `docker container start llbds -a`  
-Force stop server(not recommended): `docker container stop llbds`  
-Enter console: `docker attach llbds`  
-Exit console: Press `Ctrl + P + Q`. If you press `Ctrl + C`, the server process will exit.
-
-Everything's done! Next, you can install **LiteLoader** plugins!
-
-## 🎯 Find & Install plugins
-
-### Plugin downloads
-
-`LiteLoader` main plugin distribution channels.
-
-- [Official Forum](https://www.litebds.com/)
-- [MineBBS](https://www.minebbs.com/resources/?prefix_id=59)
-
-### Plugin installation
-
-1. If you downloaded a zip file, unzip it
-2. Place all the obtained contents directly into the `plugins` directory
-3. Run `bedrock_server_mod.exe` to start the service
-
-For more **installation and usage guides**, come to 👉[LiteLoader documentation](https://docs.litebds.com/#/en_US/Usage/)
-👈 to view
+Refer to the [plugin installation guide](https://docs.litebds.com/en/#/Usage?id=%f0%9f%8e%af-installing-plug-ins) to install plugins.
 
 ------
 
-## 📕 LiteLoader plugin development
+## 📕 Create a plugin
 
-### Developing plugins with C++
-
-1. Go to the [LiteLoader plugin template repository](https://github.com/LiteLDev/PluginTemplate) to download project
-   templates, or create your own project repository based on the templates and download the code locally
-2. Open the Template.sln project file
-3. Start writing the plugin code in Plugin.cpp
-4. Compile, and select the appropriate PDB file as prompted to generate the dependency libs
-5. Copy the plugin to the plugins directory for testing
-
-For plugins development examples and guidance, please come to
-👉[LiteLoader documentation](https://docs.litebds.com/#/en_US/Usage/)👈  
-If you have a revision request or need to add an API, please contact the author or post an Issue
-
-### Developing plugins using scripting Languages
-
-1. Create the file
-2. Write the code
-3. Copy the plugin to the plugins directory for testing
-
-Please come to 👉[LiteLoader documentation](https://docs.litebds.com/#/en_US/Development/)👈 for detailed **API
-documentation** and **plugin development tutorial**.
-If you have a revision request or need to add an API, please feel free to contact the author or post an Issue
-
-### Example Plugins
-
-[Click here](https://github.com/LiteLDev) for more open source LiteLoader plugins as sample plugins.
-You can use them directly in production environments
-You can also learn plugin development methods and tips here
+Refer to the [plugin development guide](https://docs.litebds.com/en/#/README?id=%f0%9f%9b%b4-i-want-to-get-my-hands-dirty-and-write-a-plugin-what-do-i-need-to-do) to develop plugins.
 
 ### Development Aids - VSCode Development Aids & Complementary Libraries
 

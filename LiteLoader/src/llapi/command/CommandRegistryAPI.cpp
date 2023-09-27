@@ -10,13 +10,14 @@
 #include "liteloader/LiteLoader.h"
 
 using ll::logger;
-static_assert(offsetof(CommandParameterData, options) == 73);
+static_assert(offsetof(CommandParameterData, options) == 89);
 static_assert(offsetof(CommandParameterData, name) == 16);
-static_assert(offsetof(CommandParameterData, unk56) == 56);
-static_assert(offsetof(CommandRegistry::Overload, unk) == 40);
+static_assert(offsetof(CommandParameterData, unk72) == 72);
+static_assert(sizeof(CommandParameterData) == 96);
+static_assert(offsetof(CommandRegistry::Overload, versionOffset) == 40);
 static_assert(sizeof(CommandRegistry::Overload) == 72);
-static_assert(offsetof(CommandRegistry::Signature, alt_symbol) == 96);
-static_assert(sizeof(CommandRegistry::Signature) == 120);
+static_assert(offsetof(CommandRegistry::Signature, alt_symbol) == 120);
+static_assert(sizeof(CommandRegistry::Signature) == 152);
 /*
 void CommandRegistry::registerOverload(std::string const& name, Overload::FactoryFn factory, std::vector<CommandParameterData>&& args)
 {
@@ -31,7 +32,7 @@ CommandRegistry::Overload::Overload(CommandVersion version,
 : version(version)
 , factory(factory)
 , params(std::forward<std::vector<CommandParameterData>>(args))
-, unk(255){};
+, versionOffset(255){};
 
 CommandRegistry::Overload::~Overload(){};
 
@@ -162,7 +163,7 @@ inline void CommandRegistry::printAll() const {
         logger.warn("{}", rule.toDebugString());
     }
     logger.error("mParseTableMap");
-    for (auto& [key, table] : mParseTableMap) {
+    for (auto& [key, table] : mParseTables) {
         logger.warn("{}: {}", key, table.toDebugString());
     }
     logger.error("mOptionals");
@@ -231,7 +232,7 @@ inline void CommandRegistry::printSize() const {
         return size;
     })();
     log["mRules                   "].append(fmt::format(", {:4}", mRules.size()));
-    log["mParseTableMap           "].append(fmt::format(", {:4}", mParseTableMap.size()));
+    log["mParseTableMap           "].append(fmt::format(", {:4}", mParseTables.size()));
     log["mOptionals               "].append(fmt::format(", {:4}", mOptionals.size()));
     log["mEnumValues              "].append(fmt::format(", {:4}", mEnumValues.size()));
     log["mEnums                   "].append(fmt::format(", {:4}", mEnums.size()));
@@ -242,7 +243,6 @@ inline void CommandRegistry::printSize() const {
     log["mCommandSymbols          "].append(fmt::format(", {:4}", mCommandSymbols.size()));
     log["mSignatures              "].append(fmt::format(", {:4}", mSignatures.size()));
     log["mTypeLookup              "].append(fmt::format(", {:4}", mTypeLookup.size()));
-    log["unk376                   "].append(fmt::format(", {:4}", unk376.size()));
     log["mAliases                 "].append(fmt::format(", {:4}", mAliases.size()));
     log["mSemanticConstraints     "].append(fmt::format(", {:4}", mSemanticConstraints.size()));
     log["mSemanticConstraintLookup"].append(fmt::format(", {:4}", mSemanticConstraintLookup.size()));

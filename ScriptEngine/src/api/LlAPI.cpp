@@ -34,8 +34,8 @@ ClassDefine<void> LlClassBuilder =
         .function("requireVersion", &LlClass::requireVersion)
         .function("listPlugins", &LlClass::listPlugins)
         .function("getAllPluginInfo", &LlClass::getAllPluginInfo)
-        .function("import", &LlClass::importFunc)
-        .function("export", &LlClass::exportFunc)
+        .function("imports", &LlClass::importFunc)
+        .function("exports", &LlClass::exportFunc)
         .function("hasExported", &LlClass::hasFuncExported)
         .function("require", &LlClass::require)
         .function("eval", &LlClass::eval)
@@ -51,6 +51,13 @@ ClassDefine<void> LlClassBuilder =
 
         .build();
 
+ClassDefine<void> VersionClassBuilder =
+    defineClass("Version")
+        // wait for: constructor, setter, converter(toString, toArray, toObject)...
+        .property("Dev", []() { return Number::newNumber(ll::Version::Dev); })
+        .property("Beta", []() { return Number::newNumber(ll::Version::Beta); })
+        .property("Release", []() { return Number::newNumber(ll::Version::Release); })
+        .build();
 
 Local<Value> LlClass::getLanguage() {
     try {
@@ -145,7 +152,7 @@ Local<Value> LlClass::registerPlugin(const Arguments& args) {
 
         ll::Version ver = ll::Version(1, 0, 0);
         if (args.size() >= 3) {
-            if (args[2].isArray()) {
+            if (args[2].isArray()) { // like [1,0,0].
                 Local<Array> verInfo = args[2].asArray();
                 if (verInfo.size() >= 1) {
                     Local<Value> major = verInfo.get(0);
@@ -162,7 +169,12 @@ Local<Value> LlClass::registerPlugin(const Arguments& args) {
                     if (revision.isNumber())
                         ver.revision = revision.toInt();
                 }
-            } else if (args[2].isObject()) {
+                if (verInfo.size() >= 4) { // script: Version Enum.
+                    Local<Value> revision = verInfo.get(3);
+                    if (revision.isNumber())
+                        ver.status = (ll::Version::Status)revision.toInt();
+                }
+            } else if (args[2].isObject()) { // like { major: 1, minor:0, revision:0 }
                 Local<Object> verInfo = args[2].asObject();
                 if (verInfo.has("major")) {
                     Local<Value> major = verInfo.get("major");
@@ -178,6 +190,11 @@ Local<Value> LlClass::registerPlugin(const Arguments& args) {
                     Local<Value> revision = verInfo.get("revision");
                     if (revision.isNumber())
                         ver.revision = revision.toInt();
+                }
+                if (verInfo.has("status")) {
+                    Local<Value> revision = verInfo.get("status");
+                    if (revision.isNumber())
+                        ver.status = (ll::Version::Status)revision.toInt();
                 }
             } else {
                 LOG_WRONG_ARG_TYPE();
@@ -344,10 +361,10 @@ Local<Value> LlClass::require(const Arguments& args) {
         if (existing) {
             bool success = PluginManager::loadPlugin(requirePath);
             if (success) {
-                logger.info(thisName + tr("llseapi.require.success") + require);
+                logger.info( tr("llseapi.require.success", require, thisName));
                 return Boolean::newBoolean(true);
             } else {
-                logger.error(thisName + tr("llseapi.require.fail"));
+                logger.error(tr("llseapi.require.fail", thisName));
                 return Boolean::newBoolean(false);
             }
         }
@@ -364,17 +381,17 @@ Local<Value> LlClass::require(const Arguments& args) {
         if (existing) {
             bool success = PluginManager::loadPlugin(string(LLSE_DEPENDS_DIR) + "/" + require);
             if (success) {
-                logger.info(thisName + tr("llseapi.require.success") + require);
+                logger.info(tr("llseapi.require.success", require, thisName));
                 return Boolean::newBoolean(true);
             } else {
-                logger.error(thisName + tr("llseapi.require.fail"));
+                logger.error(tr("llseapi.require.fail", thisName));
                 return Boolean::newBoolean(false);
             }
         }
 
         // HTTP(s)下载
         if (args.size() == 1) {
-            logger.error(thisName + tr("llseapi.require.fail"));
+            logger.error(tr("llseapi.require.fail", thisName));
             return Boolean::newBoolean(false);
         }
 
@@ -383,20 +400,20 @@ Local<Value> LlClass::require(const Arguments& args) {
         string result, downloadPath = string(LLSE_DEPENDS_DIR) + "/" + require;
 
         if (!HttpGetSync(remotePath, &status, &result) || status != 200) {
-            logger.error(thisName + tr("llseapi.require.network.fail") + to_string(status));
+            logger.error(tr("llseapi.require.network.fail", thisName, status));
             return Boolean::newBoolean(false);
         }
         WriteAllFile(downloadPath, result, false);
 
-        logger.info(thisName + tr("llseapi.require.download.success") + downloadPath);
+        logger.info(tr("llseapi.require.download.success", thisName, downloadPath));
 
         //下载完毕安装
         bool success = PluginManager::loadPlugin(downloadPath);
         if (success) {
-            logger.info(thisName + tr("llseapi.require.success") + require);
+            logger.info(tr("llseapi.require.success", require, thisName));
             return Boolean::newBoolean(true);
         } else {
-            logger.error(thisName + tr("llseapi.require.fail"));
+            logger.error(tr("llseapi.require.fail", thisName));
             return Boolean::newBoolean(false);
         }
     }

@@ -23,16 +23,15 @@ Block* Block::create(CompoundTag* nbt) {
 }
 
 string Block::getTypeName() const {
-    return Block::getName().getString();
+    return this->getName().getString();
 }
-
 
 int Block::getId() const {
     return getLegacyBlock().getBlockItemId();
 }
 
-std::unique_ptr<CompoundTag> Block::getNbt() {
-    return CompoundTag::fromBlock(this);
+std::unique_ptr<CompoundTag> Block::getNbt() const {
+    return getSerializationId().clone();
 }
 
 bool Block::setNbt(CompoundTag* nbt) {

@@ -12,8 +12,8 @@
 #include "main/NodeJsHelper.h"
 #include "engine/EngineManager.h"
 #include "engine/EngineOwnData.h"
-#include <NodeJs/uv/uv.h>
-#include <NodeJs/v8/v8.h>
+#include <uv/uv.h>
+#include <v8/v8.h>
 
 // pre-declare
 extern void BindAPIs(ScriptEngine* engine);
@@ -111,6 +111,7 @@ bool loadPluginCode(script::ScriptEngine* engine, std::string entryScriptPath, s
     if (!EndsWith(pluginDirPath, "/"))
         pluginDirPath += "/";
     pluginDirPath = ReplaceStr(pluginDirPath, "\\", "/");
+    entryScriptPath = ReplaceStr(entryScriptPath, "\\", "/");
 
     // Find setup
     auto it = setups->find(engine);
@@ -128,6 +129,7 @@ bool loadPluginCode(script::ScriptEngine* engine, std::string entryScriptPath, s
         string executeJs =
             "const __LLSE_PublicRequire = require('module').createRequire(process.cwd() + '/" + pluginDirPath + "');"
             + "const __LLSE_PublicModule = require('module'); __LLSE_PublicModule.exports = {};"
+            + "ll.export = ll.exports; ll.import = ll.imports; "
 
             + "(function (exports, require, module, __filename, __dirname) { "
             + *mainScripts + "\n})({}, __LLSE_PublicRequire, __LLSE_PublicModule, '"

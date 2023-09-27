@@ -27,6 +27,8 @@ public:
     Local<Value> getType();
     Local<Value> getId();
     Local<Value> getPos();
+    Local<Value> getPosDelta();
+    Local<Value> getFeetPos();
     Local<Value> getBlockPos();
     Local<Value> getMaxHealth();
     Local<Value> getHealth();
@@ -63,11 +65,23 @@ public:
     Local<Value> isBaby();
     Local<Value> isMoving();
 
+    Local<Value> setPosDelta(const Arguments& args);
     Local<Value> teleport(const Arguments& args);
     Local<Value> kill(const Arguments& args);
+    Local<Value> despawn(const Arguments& args);
+    Local<Value> remove(const Arguments& args);
     Local<Value> hurt(const Arguments& args);
     Local<Value> heal(const Arguments& args);
     Local<Value> setHealth(const Arguments& args);
+    Local<Value> setAbsorption(const Arguments& args);
+    Local<Value> setAttackDamage(const Arguments& args);
+    Local<Value> setMaxAttackDamage(const Arguments& args);
+    Local<Value> setFollowRange(const Arguments& args);
+    Local<Value> setKnockbackResistance(const Arguments& args);
+    Local<Value> setLuck(const Arguments& args);
+    Local<Value> setMovementSpeed(const Arguments& args);
+    Local<Value> setUnderwaterMovementSpeed(const Arguments& args);
+    Local<Value> setLavaMovementSpeed(const Arguments& args);
     Local<Value> setMaxHealth(const Arguments& args);
     Local<Value> setOnFire(const Arguments& args);
     Local<Value> setFire(const Arguments& args);
@@ -97,6 +111,11 @@ public:
     Local<Value> getBlockFromViewVector(const Arguments& args);
 
     Local<Value> quickEvalMolangScript(const Arguments& args);
+
+    Local<Value> getAllEffects();
+    Local<Value> addEffect(const Arguments& args);
+    Local<Value> removeEffect(const Arguments& args);
+
 };
 extern ClassDefine<EntityClass> EntityClassBuilder;
 extern ClassDefine<void> ActorDamageCauseBuilder;

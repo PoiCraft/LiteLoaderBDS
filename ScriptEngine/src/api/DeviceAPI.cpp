@@ -18,8 +18,8 @@ ClassDefine<DeviceClass> DeviceClassBuilder =
         .instanceProperty("lastPing", &DeviceClass::getLastPing)
         .instanceProperty("lastPacketLoss", &DeviceClass::getLastPacketLoss)
         .instanceProperty("os", &DeviceClass::getOs)
-        .instanceProperty("inputMode", &DeviceClass::getInputMode)
-        .instanceProperty("playMode", &DeviceClass::getPlayMode)
+        //.instanceProperty("inputMode", &DeviceClass::getInputMode)
+        //.instanceProperty("playMode", &DeviceClass::getPlayMode)
         .instanceProperty("serverAddress", &DeviceClass::getServerAddress)
         .instanceProperty("clientId", &DeviceClass::getClientId)
         .build();
@@ -36,7 +36,7 @@ Local<Object> DeviceClass::newDevice(Player* p) {
 //成员函数
 void DeviceClass::setPlayer(Player* player) {
     __try {
-        id = player->getUniqueID();
+        id = player->getOrCreateUniqueID();
     } __except (EXCEPTION_EXECUTE_HANDLER) {
         isValid = false;
     }
@@ -140,24 +140,24 @@ Local<Value> DeviceClass::getClientId() {
     CATCH("Fail in getClientId!")
 }
 
-Local<Value> DeviceClass::getInputMode() {
-    try {
-        Player* player = getPlayer();
-        if (!player)
-            return Local<Value>();
-
-        return Number::newNumber((int)player->getInputMode());
-    }
-    CATCH("Fail in getInputMode!")
-}
-
-Local<Value> DeviceClass::getPlayMode() {
-    try {
-        Player* player = getPlayer();
-        if (!player)
-            return Local<Value>();
-
-        return Number::newNumber((int)player->getPlayMode());
-    }
-    CATCH("Fail in getPlayMode!")
-}
+//Local<Value> DeviceClass::getInputMode() {
+//    try {
+//        Player* player = getPlayer();
+//        if (!player)
+//            return Local<Value>();
+//
+//        return Number::newNumber((int)player->getInputMode());
+//    }
+//    CATCH("Fail in getInputMode!")
+//}
+//
+//Local<Value> DeviceClass::getPlayMode() {
+//    try {
+//        Player* player = getPlayer();
+//        if (!player)
+//            return Local<Value>();
+//
+//        return Number::newNumber((int)player->getPlayMode());
+//    }
+//    CATCH("Fail in getPlayMode!")
+//}

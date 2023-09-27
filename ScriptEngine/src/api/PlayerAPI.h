@@ -24,6 +24,7 @@ public:
 
     Local<Value> getName();
     Local<Value> getPos();
+    Local<Value> getFeetPos();
     Local<Value> getBlockPos();
     Local<Value> getLastDeathPos();
     Local<Value> getRealName();
@@ -50,7 +51,6 @@ public:
     Local<Value> getInWaterOrRain();
     Local<Value> getInWorld();
     Local<Value> getInClouds();
-    Local<Value> getSneaking();
     Local<Value> getSpeed();
     Local<Value> getDirection();
     Local<Value> getUniqueID();
@@ -78,6 +78,7 @@ public:
     Local<Value> isFlying();
     Local<Value> isSleeping();
     Local<Value> isMoving();
+    Local<Value> isSneaking();
 
     Local<Value> isOP(const Arguments& args);
     Local<Value> setPermLevel(const Arguments& args);
@@ -98,6 +99,15 @@ public:
     Local<Value> heal(const Arguments& args);
     Local<Value> setHealth(const Arguments& args);
     Local<Value> setMaxHealth(const Arguments& args);
+    Local<Value> setAbsorption(const Arguments& args);
+    Local<Value> setAttackDamage(const Arguments& args);
+    Local<Value> setMaxAttackDamage(const Arguments& args);
+    Local<Value> setFollowRange(const Arguments& args);
+    Local<Value> setKnockbackResistance(const Arguments& args);
+    Local<Value> setLuck(const Arguments& args);
+    Local<Value> setMovementSpeed(const Arguments& args);
+    Local<Value> setUnderwaterMovementSpeed(const Arguments& args);
+    Local<Value> setLavaMovementSpeed(const Arguments& args);
     Local<Value> setHungry(const Arguments& args);
     Local<Value> setOnFire(const Arguments& args);
     Local<Value> setFire(const Arguments& args);
@@ -169,6 +179,10 @@ public:
     Local<Value> isSimulatedPlayer(const Arguments& args);
     Local<Value> quickEvalMolangScript(const Arguments& args);
 
+    Local<Value> getAllEffects();
+    Local<Value> addEffect(const Arguments& args);
+    Local<Value> removeEffect(const Arguments& args);
+
     // LLMoney
 
     Local<Value> getMoney(const Arguments& args);
@@ -180,6 +194,7 @@ public:
 
     // SimulatedPlayer API (API/SimulatedPlayerAPI.cpp)
 
+    Local<Value> simulateRespawn(const Arguments& args);
     Local<Value> simulateSneak(const Arguments& args);
     Local<Value> simulateAttack(const Arguments& args);
     Local<Value> simulateDestroy(const Arguments& args);
